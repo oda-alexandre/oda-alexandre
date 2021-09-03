@@ -8,7 +8,7 @@
 <!-- name - alias - activities -->
 <div style="color:rgb(17, 100, 102); font-family: 'Merriweather'" align="center">
 
-## ODA ALEXANDRE test
+## ODA ALEXANDRE
 
 #### @MAITRE_ODA
 
