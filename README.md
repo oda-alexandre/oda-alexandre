@@ -5,6 +5,7 @@
 
 </div>
 
+
 <!-- name - alias - activities -->
 <div style="color:rgb(17, 100, 102); font-family: 'Merriweather'" align="center">
 
@@ -18,6 +19,7 @@
 
 ![separator](https://user-images.githubusercontent.com/43296168/132062615-3b18c43a-fa5f-45f2-99c3-4b831cde910e.gif)
 
+
 <!-- visitors count -->
 <div style="color:rgb(17, 100, 102); font-family: 'Merriweather'" align="center">
 
@@ -28,6 +30,21 @@
 </div>
 
 ![separator](https://user-images.githubusercontent.com/43296168/132062615-3b18c43a-fa5f-45f2-99c3-4b831cde910e.gif)
+
+
+<!-- social networks -->
+<div style="color:rgb(17, 100, 102); font-family: 'Merriweather'" align="center">
+
+<a href="https://twitter.com/intent/follow?screen_name=alexandreoda"> <img src="https://img.shields.io/badge/Twitter-116466?style=for-the-badge&logo=twitter&logoColor=white" title="Twitter"></a>
+<a href="https://www.facebook.com/alexandreoda"> <img src="https://img.shields.io/badge/Facebook-116466?style=for-the-badge&logo=facebook&logoColor=white" title="Facebook"></a>
+<a href="https://www.linkedin.com/signup/public-profile-join?vieweeVanityName=oda-alexandre&trk=public_profile_top-card-primary-button-join-to-connect"> <img src="https://img.shields.io/badge/LinkedIn-116466?style=for-the-badge&logo=linkedin&logoColor=white" title="Linkedin"></a>
+<a href="https://www.youtube.com/channel/UCELtTOkvfaLoZzUWZ6zywJQ/?sub_confirmation=1"> <img src="https://img.shields.io/badge/YouTube-116466?style=for-the-badge&logo=youtube&logoColor=white" title="YouTube"></a>
+<a href="https://www.oda-alexandre.com/blog"> <img src="https://img.shields.io/badge/RSS-116466?style=for-the-badge&logo=rss&logoColor=white" title="RSS"></a>
+
+</div>
+
+![separator](https://user-images.githubusercontent.com/43296168/132062615-3b18c43a-fa5f-45f2-99c3-4b831cde910e.gif)
+
 
 <!-- spotify music -->
 <div style="color:rgb(17, 100, 102); font-family: 'Merriweather'" align="center">
@@ -42,18 +59,6 @@
 
 ![separator](https://user-images.githubusercontent.com/43296168/132062615-3b18c43a-fa5f-45f2-99c3-4b831cde910e.gif)
 
-<!-- social networks -->
-<div style="color:rgb(17, 100, 102); font-family: 'Merriweather'" align="center">
-
-[![Twitter](https://img.shields.io/badge/Twitter-116466?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/intent/follow?screen_name=alexandreoda)
-[![Facebook](https://img.shields.io/badge/Facebook-116466?style=for-the-badge&logo=facebook&logoColor=white)](https://www.facebook.com/alexandreoda)
-[![Linkedin](https://img.shields.io/badge/LinkedIn-116466?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/signup/public-profile-join?vieweeVanityName=oda-alexandre&trk=public_profile_top-card-primary-button-join-to-connect)
-[![YouTube](https://img.shields.io/badge/YouTube-116466?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/channel/UCELtTOkvfaLoZzUWZ6zywJQ/?sub_confirmation=1)
-[![Rss](https://img.shields.io/badge/RSS-116466?style=for-the-badge&logo=rss&logoColor=white)](https://www.oda-alexandre.com/blog)
-
-</div>
-
-![separator](https://user-images.githubusercontent.com/43296168/132062615-3b18c43a-fa5f-45f2-99c3-4b831cde910e.gif)
 
 <!-- github stats -->
 <div style="color:rgb(17, 100, 102); font-family: 'Merriweather'" align="center">
@@ -62,19 +67,13 @@
 
 <div>
 
-![readme streak](https://github-readme-streak-stats.herokuapp.com?user=oda-alexandre&theme=dark&hide_border=true&stroke=116466&ring=116466&fire=116466&currStreakLabel=FFFFFF&layout=compact)
-
-</div>
-
-<div>
-
-![readme stats](https://github-readme-stats.vercel.app/api?username=oda-alexandre&show_icons=true&hide_border=true&title_color=116466&theme=dark&layout=compact&include_all_commits=true&icon_color=116466&hide_title=true)
-
-</div>
+<img src="https://github-readme-streak-stats.herokuapp.com?user=oda-alexandre&theme=dark&hide_border=true&stroke=116466&ring=116466&fire=116466&currStreakLabel=FFFFFF&layout=compact" title="Readme Streak">
+<img src="https://github-readme-stats.vercel.app/api?username=oda-alexandre&show_icons=true&hide_border=true&title_color=116466&theme=dark&layout=compact&include_all_commits=true&icon_color=116466&hide_title=true" title="Readme Stats">
 
 </div>
 
 ![separator](https://user-images.githubusercontent.com/43296168/132062615-3b18c43a-fa5f-45f2-99c3-4b831cde910e.gif)
+
 
 <!-- wakatime stats -->
 <div style="color:rgb(17, 100, 102); font-family: 'Merriweather'" align="center">
@@ -101,6 +100,7 @@
 
 ![separator](https://user-images.githubusercontent.com/43296168/132062615-3b18c43a-fa5f-45f2-99c3-4b831cde910e.gif)
 
+
 <!-- rootme stats -->
 <div style="color:rgb(17, 100, 102); font-family: 'Merriweather'" align="center">
 
@@ -115,6 +115,7 @@
 </div>
 
 ![separator](https://user-images.githubusercontent.com/43296168/132062615-3b18c43a-fa5f-45f2-99c3-4b831cde910e.gif)
+
 
 <!-- latest youtube videos -->
 <div style="color:rgb(17, 100, 102); font-family: 'Merriweather'" align="center">
@@ -139,6 +140,7 @@
 </div>
 
 ![separator](https://user-images.githubusercontent.com/43296168/132062615-3b18c43a-fa5f-45f2-99c3-4b831cde910e.gif)
+
 
 <!-- buy me a coffee -->
 <div align="center">
