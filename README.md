@@ -106,11 +106,7 @@
 
 #### ROOTME STATS (CTF) IN REAL TIME
 
-<div>
-
   <img src="https://root-me-badge.cloud.duboc.xyz/storage_clients/7b6190456376908ae5f1691d8ae53d7d/static_badge_dark.png" title="RootMe Stats CTF">
-
-</div>
 
 </div>
 
