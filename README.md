@@ -35,7 +35,7 @@
 <!-- social networks -->
 <div style="color:rgb(17, 100, 102); font-family: 'Merriweather'" align="center">
 
-<a href="https://twitter.com/intent/follow?screen_name=alexandreoda"> <img src="https://img.shields.io/badge/Twitter-116466?style=for-the-badge&logo=twitter&logoColor=white" title="Twitter"></a>
+<a href="https://wakatime.com/@maitre_oda"> <img src="https://img.shields.io/badge/Twitter-116466?style=for-the-badge&logo=twitter&logoColor=white" title="Twitter"></a>
 <a href="https://www.facebook.com/alexandreoda"> <img src="https://img.shields.io/badge/Facebook-116466?style=for-the-badge&logo=facebook&logoColor=white" title="Facebook"></a>
 <a href="https://www.linkedin.com/signup/public-profile-join?vieweeVanityName=oda-alexandre&trk=public_profile_top-card-primary-button-join-to-connect"> <img src="https://img.shields.io/badge/LinkedIn-116466?style=for-the-badge&logo=linkedin&logoColor=white" title="Linkedin"></a>
 <a href="https://www.youtube.com/channel/UCELtTOkvfaLoZzUWZ6zywJQ/?sub_confirmation=1"> <img src="https://img.shields.io/badge/YouTube-116466?style=for-the-badge&logo=youtube&logoColor=white" title="YouTube"></a>
@@ -84,7 +84,7 @@
 
 <b>Languages throughout the period</b>
 
-  <img src="https://wakatime.com/share/@maitre_oda/0701c02b-f687-4d6b-a913-2825fc2b4f83.svg" title="Languages throughout the period">
+  <img href="https://wakatime.com/@maitre_oda" src="https://wakatime.com/share/@maitre_oda/0701c02b-f687-4d6b-a913-2825fc2b4f83.svg" title="Languages throughout the period">
 
 </div>
 
@@ -94,7 +94,7 @@
 
 <div>
 
-  <img src="https://wakatime.com/share/@maitre_oda/a11eda34-a288-4229-88de-2a883689cf4a.svg" title="Coding Activity over Last 30 Days">
+  <img href="https://wakatime.com/@maitre_oda" src="https://wakatime.com/share/@maitre_oda/a11eda34-a288-4229-88de-2a883689cf4a.svg" title="Coding Activity over Last 30 Days">
 
 </div>
 
