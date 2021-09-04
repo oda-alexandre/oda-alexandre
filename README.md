@@ -8,11 +8,11 @@
 <!-- name - alias - activities -->
 <div align="center">
 
-# ODA ALEXANDRE
+## ODA ALEXANDRE
 
-### @MAITRE_ODA
+#### @MAITRE_ODA
 
-## DEVSECOPS || ÉTHICAL HACKER
+### DEVSECOPS || ÉTHICAL HACKER
 
 ![separator](https://user-images.githubusercontent.com/43296168/132062615-3b18c43a-fa5f-45f2-99c3-4b831cde910e.gif)
 
@@ -21,7 +21,7 @@
 <!-- visitors count -->
 <div align="center">
 
-#### VISITORS COUNT
+### VISITORS COUNT
 
 ![visitors](https://profile-counter.glitch.me/oda-alexandre/count.svg)
 
@@ -44,7 +44,7 @@
 <!-- spotify music -->
 <div align="center">
 
-#### MY LISTENING MUSIC IN REAL TIME
+### MY LISTENING MUSIC IN REAL TIME
 
 [![Spotify](https://spotify-readme-maitre-oda.vercel.app/api/spotify)](https://open.spotify.com/user/maitre_oda)
 
@@ -55,7 +55,7 @@
 <!-- github stats -->
 <div align="center">
 
-#### GITHUB STATS
+### GITHUB STATS
 
 <div>
 
@@ -70,15 +70,15 @@
 <!-- wakatime stats -->
 <div align="center">
 
-#### WAKATIME STATS IN REAL TIME
+### WAKATIME STATS IN REAL TIME
 
-##### Languages throughout the period
+#### Languages throughout the period
 
 <a href="https://wakatime.com/@maitre_oda"> <img src="https://wakatime.com/share/@maitre_oda/0701c02b-f687-4d6b-a913-2825fc2b4f83.svg" title="Languages throughout the period"></a>
 
 <br>
 
-##### Coding activity over last 30 Days
+#### Coding activity over last 30 Days
 
 <a href="https://wakatime.com/@maitre_oda"> <img src="https://wakatime.com/share/@maitre_oda/a11eda34-a288-4229-88de-2a883689cf4a.svg" title="Coding activity over last 30 Days"></a>
 
@@ -86,7 +86,7 @@
 
 </div>
 
-#### ROOTME STATS (CTF) IN REAL TIME
+### ROOTME STATS (CTF) IN REAL TIME
 
 <div>
 
@@ -99,7 +99,7 @@
 <!-- latest youtube videos -->
 <div align="center">
 
-#### LATEST YOUTUBE VIDEOS
+### LATEST YOUTUBE VIDEOS
 
 <!-- YOUTUBE:START -->
 <!-- YOUTUBE:END -->
@@ -111,7 +111,7 @@
 <!-- latest blog posts -->
 <div align="center">
 
-#### LATEST BLOG POSTS
+### LATEST BLOG POSTS
 
 <!-- BLOG-POST:START -->
 <!-- BLOG-POST:END -->
