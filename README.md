@@ -1,11 +1,11 @@
-<!-- avatar -->
+<!-- AVATAR -->
 <div align="center">
 
   <img src="https://avatars.githubusercontent.com/u/43296168?v=4" width="200" height="200" title="Maitre_Oda">
 
 </div>
 
-<!-- name - alias - activities -->
+<!-- NAME ALIAS ACTIVITIES -->
 <div align="center">
 
 ## ODA ALEXANDRE
@@ -18,7 +18,7 @@
 
 </div>
 
-<!-- visitors count -->
+<!-- VISITORS COUNT -->
 <div align="center">
 
 ### VISITORS COUNT
@@ -29,7 +29,7 @@
 
 </div>
 
-<!-- social networks -->
+<!-- SOCIAL NETWORKS -->
 <div align="center">
 
 [![Twitter](https://img.shields.io/badge/Twitter-116466?style=for-the-badge&logo=twitter&logoColor=white "Twitter")](https://twitter.com/intent/follow?screen_name=alexandreoda)
@@ -41,7 +41,7 @@
 
 </div>
 
-<!-- spotify music -->
+<!-- SPOTIFY MUSIC -->
 <div align="center">
 
 ### MY LISTENING MUSIC IN REAL TIME
@@ -52,7 +52,7 @@
 
 </div>
 
-<!-- github stats -->
+<!-- GITHUB STATS -->
 <div align="center">
 
 ### GITHUB STATS
@@ -67,7 +67,7 @@
 
 </div>
 
-<!-- wakatime stats -->
+<!-- WAKATIME STATS -->
 <div align="center">
 
 ### WAKATIME STATS IN REAL TIME
@@ -86,6 +86,7 @@
 
 </div>
 
+<!-- ROOTME STATS -->
 ### ROOTME STATS (CTF) IN REAL TIME
 
 <div>
@@ -96,7 +97,7 @@
 
 </div>
 
-<!-- latest youtube videos -->
+<!-- LATEST YOUTUBE VIDEOS -->
 <div align="center">
 
 ### LATEST YOUTUBE VIDEOS
@@ -108,7 +109,7 @@
 
 </div>
 
-<!-- latest blog posts -->
+<!-- LATEST BLOG POSTS -->
 <div align="center">
 
 ### LATEST BLOG POSTS
@@ -120,7 +121,7 @@
 
 </div>
 
-<!-- buy me a coffee -->
+<!-- BUY ME A COFFEE -->
 <div align="center">
 
 <a href="https://www.buymeacoffee.com/maitreoda"> <img src="https://cdn.buymeacoffee.com/buttons/v2/default-black.png" title="Buy me a coffee" height="50" width="200"></a>
