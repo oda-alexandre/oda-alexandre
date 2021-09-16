@@ -36,10 +36,10 @@
 
 <div align="center">
 
-[![Twitter][twitter-shield]][twitter-url]
-[![Linkedin][linkedin-shield]][linkedin-url]
-[![YouTube][youtube-shield]][youtube-url]
-[![RSS][rss-shield]][rss-url]
+[![Twitter][twitter_shield]][twitter-url]
+[![Linkedin][linkedin_shield]][linkedin_url]
+[![YouTube][youtube_shield]][youtube_url]
+[![RSS][rss_shield]][rss_url]
 
 ![separator][separator]
 
@@ -77,7 +77,7 @@
 
 <div align="center">
 
-### WAKATIME STATS IN REAL TIME
+### WAKATIME STATS
 
 #### Languages throughout the period
 
@@ -95,7 +95,7 @@
 
 <!-- ROOTME STATS -->
 
-### ROOTME STATS (CTF) IN REAL TIME
+### ROOTME STATS (CTF)
 
 <div>
 
@@ -136,6 +136,7 @@
 <div align="center">
 
 ### MY TOP FOLLOWERS
+
 #### I thank all my followers
 
 <!-- TOP-FOLLOWERS:START -->
@@ -157,14 +158,14 @@
 
 <!-- MARKDOWN SOCIAL NETWORKS -->
 
-[twitter-shield]: https://img.shields.io/badge/Twitter-116466?style=for-the-badge&logo=twitter&logoColor=white
+[twitter_shield]: https://img.shields.io/badge/Twitter-116466?style=for-the-badge&logo=twitter&logoColor=white
 [twitter-url]: https://twitter.com/intent/follow?screen_name=alexandreoda "Twitter"
-[linkedin-shield]: https://img.shields.io/badge/Linkedin-116466?style=for-the-badge&logo=Linkedin&logoColor=white
-[linkedin-url]: https://www.linkedin.com/signup/public-profile-join?vieweeVanityName=oda-alexandre&trk=public_profile_top-card-primary-button-join-to-connect "Linkedin"
-[youtube-shield]: https://img.shields.io/badge/YouTube-116466?style=for-the-badge&logo=YouTube&logoColor=white
-[youtube-url]: https://www.youtube.com/channel/UCELtTOkvfaLoZzUWZ6zywJQ/?sub_confirmation=1 "Linkedin"
-[rss-shield]: https://img.shields.io/badge/RSS-116466?style=for-the-badge&logo=RSS&logoColor=white
-[rss-url]: https://www.oda-alexandre.com/blog "RSS"
+[linkedin_shield]: https://img.shields.io/badge/Linkedin-116466?style=for-the-badge&logo=Linkedin&logoColor=white
+[linkedin_url]: https://www.linkedin.com/signup/public-profile-join?vieweeVanityName=oda-alexandre&trk=public_profile_top-card-primary-button-join-to-connect "Linkedin"
+[youtube_shield]: https://img.shields.io/badge/YouTube-116466?style=for-the-badge&logo=YouTube&logoColor=white
+[youtube_url]: https://www.youtube.com/channel/UCELtTOkvfaLoZzUWZ6zywJQ/?sub_confirmation=1 "YouTube"
+[rss_shield]: https://img.shields.io/badge/RSS-116466?style=for-the-badge&logo=RSS&logoColor=white
+[rss_url]: https://www.oda-alexandre.com/blog "RSS"
 
 <!-- MARKDOWN IMAGES -->
 
