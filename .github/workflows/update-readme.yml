@@ -36,7 +36,11 @@ jobs:
           sed -i.bak -e "/<!-- LOGIN-START -->/,/<!-- LOGIN-END -->/{s/<!-- LOGIN-START -->.*<!-- LOGIN-END -->/<!-- LOGIN-START -->@$LOGIN<!-- LOGIN-END -->/}" README.md
           sed -i.bak "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
           echo "$BIO" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
-          rm README.md.bak
+
+      # - name: Update Blog Posts
+      #   uses: gautamkrishnar/blog-post-workflow@master
+      #   with:
+      #     feed_list: "https://www.oda-alexandre.com/blog/feed"
 
       - name: Fetch and Update Followers
         run: |
@@ -48,15 +52,15 @@ jobs:
             }
             LOGIN=$(_jq '.login')
             AVATAR_URL=$(_jq '.avatar_url')
-            FOLLOWER_CARDS="$FOLLOWER_CARDS<div style=\"text-align: center; margin: 10px;\"><a href=\"https://github.com/$LOGIN\" target=\"_blank\"><img src=\"$AVATAR_URL\" alt=\"$LOGIN\" style=\"width: 100px; height: 100px; border-radius: 50%; object-fit: cover;\"><br>@$LOGIN</a></div>"
+            FOLLOWER_CARDS="$FOLLOWER_CARDS<div style=\"display: inline-block; text-align: center; margin: 10px;\"><a href=\"https://github.com/$LOGIN\" target=\"_blank\"><img src=\"$AVATAR_URL\" alt=\"$LOGIN\" style=\"width: 100px; height: 100px; border-radius: 50%; object-fit: cover;\"><br>@$LOGIN</a></div>"
           done
-          sed -i.bak "/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/{//!d;}" README.md
-          echo "<div style=\"display: flex; flex-wrap: wrap; justify-content: center;\">$FOLLOWER_CARDS</div>" | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
-          rm README.md.bak
+          sed -i "/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/{//!d;}" README.md
+          echo "$FOLLOWER_CARDS" | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
 
       - name: Commit and Push Changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add README.md
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update README with latest information" && git push)
+          git commit -m "Update README with latest information"
+          git push
