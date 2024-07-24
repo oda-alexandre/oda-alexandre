@@ -55,7 +55,7 @@ jobs:
             FOLLOWER_CARDS="$FOLLOWER_CARDS<div style=\"display: inline-block; text-align: center; margin: 10px;\"><a href=\"https://github.com/$LOGIN\" target=\"_blank\"><img src=\"$AVATAR_URL\" alt=\"$LOGIN\" style=\"width: 100px; height: 100px; border-radius: 50%; object-fit: cover;\"><br>@$LOGIN</a></div>"
           done
           sed -i "/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/{//!d;}" README.md
-          echo "$FOLLOWER_CARDS" | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
+          echo "<div style=\"display: flex; flex-wrap: wrap; justify-content: center;\">$FOLLOWER_CARDS</div>" | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
 
       - name: Commit and Push Changes
         run: |
