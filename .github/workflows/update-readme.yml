@@ -33,10 +33,10 @@ jobs:
           sed -i "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
           echo "${{ env.bio }}" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
 
-      # - name: Update Blog Posts
-      #   uses: gautamkrishnar/blog-post-workflow@master
-      #   with:
-      #     feed_list: "https://www.oda-alexandre.com/blog/feed"
+      - name: Update Blog Posts
+        uses: gautamkrishnar/blog-post-workflow@master
+        with:
+          feed_list: "https://www.oda-alexandre.com/blog/feed"
 
       - name: Update Top Followers
         run: |
