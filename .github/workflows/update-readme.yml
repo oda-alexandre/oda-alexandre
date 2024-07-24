@@ -44,10 +44,10 @@ jobs:
           FOLLOWER_CARDS=""
           for USER in $TOP_FOLLOWERS; do
             AVATAR_URL=$(curl -s https://api.github.com/users/$USER | jq -r '.avatar_url')
-            FOLLOWER_CARDS="$FOLLOWER_CARDS<div style=\"display: inline-block; margin: 10px; text-align: center;\"><img src=\"$AVATAR_URL\" width=\"100\" height=\"100\" style=\"border-radius: 50%;\" alt=\"$USER\"/><br/><a href=\"https://github.com/$USER\">@$USER</a></div>"
+            FOLLOWER_CARDS="$FOLLOWER_CARDS<div style=\"display: inline-block; margin: 10px; text-align: center;\"><img src=\"$AVATAR_URL\" width=\"100\" height=\"100\" style=\"border-radius: 50%; object-fit: cover;\" alt=\"$USER\"/><br/><a href=\"https://github.com/$USER\">@$USER</a></div>"
           done
           sed -i "/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/{//!d;}" README.md
-          echo "$FOLLOWER_CARDS" | sed 's/^/ /' | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
+          echo "$FOLLOWER_CARDS" | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
 
       - name: Commit and Push Changes
         run: |
