@@ -15,24 +15,28 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v2
 
-      - name: Update GitHub Profile README
-        uses: theboi/github-update-readme@v1.3.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          header: "Bonjour, je suis ODA ALEXANDRE"
-          subhead: |
-            ```markdown
-            ### @MAITRE_ODA
-            #### DEVSECOPS || ÉTHICAL HACKER
-            ```
-          footer: "**Retrouvez-moi sur [LinkedIn](https://www.linkedin.com/signup/public-profile-join?vieweeVanityName=oda-alexandre&trk=public_profile_top-card-primary-button-join-to-connect).**"
-
-      - name: Fetch and Update Bio
+      - name: Fetch GitHub Bio
+        id: bio
         run: |
           BIO=$(curl -s https://api.github.com/users/oda-alexandre | jq -r '.bio')
+          echo "::set-output name=bio::$BIO"
+
+      - name: Update README with Bio
+        run: |
           sed -i.bak "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
-          sed -i "/<!-- ABOUT-ME:START -->/a $BIO" README.md
+          sed -i "/<!-- ABOUT-ME:START -->/a $(echo "${{ steps.bio.outputs.bio }}")" README.md
+
+      - name: Update Blog Posts
+        uses: gautamkrishnar/blog-post-workflow@master
+        with:
+          feed_list: "https://www.oda-alexandre.com/blog/feed"
+
+      - name: Update Top Followers
+        run: |
+          TOP_FOLLOWERS=$(curl -s https://api.github.com/users/oda-alexandre/followers | jq -r '.[].login' | head -n 5)
+          FOLLOWERS_MARKDOWN=$(echo "$TOP_FOLLOWERS" | awk '{print "- " $1}')
+          sed -i.bak "/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/{//!d;}" README.md
+          sed -i "/<!-- TOP-FOLLOWERS:START -->/a $FOLLOWERS_MARKDOWN" README.md
 
       - name: Commit and Push Changes
         run: |
