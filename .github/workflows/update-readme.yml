@@ -26,10 +26,10 @@ jobs:
           sed -i.bak "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
           sed -i "/<!-- ABOUT-ME:START -->/a $(echo "${{ steps.bio.outputs.bio }}")" README.md
 
-      - name: Update Blog Posts
-        uses: gautamkrishnar/blog-post-workflow@master
-        with:
-          feed_list: "https://www.oda-alexandre.com/blog/feed"
+      # - name: Update Blog Posts
+      #   uses: gautamkrishnar/blog-post-workflow@master
+      #   with:
+      #     feed_list: "https://www.oda-alexandre.com/blog/feed"
 
       - name: Update Top Followers
         run: |
