@@ -94,7 +94,7 @@
 
 <!-- TOP FOLLOWERS -->
 
-<div align="center">
+
 
 ### MY TOP FOLLOWERS
 
