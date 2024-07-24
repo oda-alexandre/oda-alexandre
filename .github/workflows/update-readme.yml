@@ -39,7 +39,7 @@ jobs:
       # - name: Update Blog Posts
       #   uses: gautamkrishnar/blog-post-workflow@master
       #   with:
-      #     feed_list: 'https://www.oda-alexandre.com/blog/feed'
+      #     feed_list: "https://www.oda-alexandre.com/blog/feed"
 
       - name: Update Top Followers
         run: |
