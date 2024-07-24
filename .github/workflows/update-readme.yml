@@ -36,10 +36,10 @@ jobs:
           sed -i.bak "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
           echo "$BIO" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
 
-      # - name: Update Blog Posts
-      #   uses: gautamkrishnar/blog-post-workflow@master
-      #   with:
-      #     feed_list: "https://www.oda-alexandre.com/blog/feed"
+      - name: Update Blog Posts
+        uses: gautamkrishnar/blog-post-workflow@master
+        with:
+          feed_list: "https://www.oda-alexandre.com/blog/feed"
 
       - name: Update Top Followers
         run: |
@@ -51,6 +51,9 @@ jobs:
           done
           sed -i.bak "/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/{//!d;}" README.md
           echo "$FOLLOWER_CARDS" | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
+
+      - name: Remove backup files
+        run: rm -f README.md.bak
 
       - name: Commit and Push Changes
         run: |
