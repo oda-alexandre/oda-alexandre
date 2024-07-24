@@ -10,24 +10,18 @@
 
 <div align="center">
 
-## ODA ALEXANDRE
+## <!-- NAME-START -->ODA ALEXANDRE<!-- NAME-END -->
 
-#### @MAITRE_ODA
-
-### DEVSECOPS || ÉTHICAL HACKER
-
-![separator][separator]
-
-</div>
+#### <!-- LOGIN-START -->MAITRE_ODA<!-- LOGIN-END -->
 
 <!-- ABOUT ME -->
 
 <div align="center">
 
-### À propos de moi
-
 <!-- ABOUT-ME:START -->
+
 < Freelance DevSecOps | CyberSécurité | Architecte de Sécurité des Systèmes d'Information (ASSI) >
+
 <!-- ABOUT-ME:END -->
 
 ![separator][separator]
@@ -64,7 +58,7 @@
 
 <div align="center">
 
-### DERNIERS ARTICLES DE BLOG
+### LATEST BLOG POSTS
 
 <!-- BLOG-POST:START -->
 <!-- BLOG-POST:END -->
@@ -77,16 +71,9 @@
 
 <div align="center">
 
-### MES MEILLEURS ABONNÉS
-
-#### Merci à tous mes abonnés
+### MY TOP FOLLOWERS
 
 <!-- TOP-FOLLOWERS:START -->
-- Neustradamus
-- aya
-- AmauryVanEspen
-- benifei
-- mfsiat
 <!-- TOP-FOLLOWERS:END -->
 
 ![separator][separator]
