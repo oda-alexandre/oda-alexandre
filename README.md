@@ -12,7 +12,7 @@
 
 ## <!-- NAME-START -->maitreoda<!-- NAME-END -->
 
-#### <!-- LOGIN-START -->@oda-alexandre<!-- LOGIN-END -->
+#### <!-- LOGIN-START -->oda-alexandre<!-- LOGIN-END -->
 
 <!-- ABOUT ME -->
 
