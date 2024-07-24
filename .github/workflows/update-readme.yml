@@ -31,9 +31,9 @@ jobs:
           NAME="${{ steps.userinfo.outputs.name }}"
           LOGIN="${{ steps.userinfo.outputs.login }}"
           BIO="${{ steps.userinfo.outputs.bio }}"
-          sed -i.bak -e "/<!-- NAME-START -->/,/<!-- NAME-END -->/{s/<!-- NAME-START -->.*<!-- NAME-END -->/<!-- NAME-START -->$NAME<!-- NAME-END -->/}" README.md
-          sed -i.bak -e "/<!-- LOGIN-START -->/,/<!-- LOGIN-END -->/{s/<!-- LOGIN-START -->.*<!-- LOGIN-END -->/<!-- LOGIN-START -->@$LOGIN<!-- LOGIN-END -->/}" README.md
-          sed -i.bak "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
+          sed -i -e "/<!-- NAME-START -->/,/<!-- NAME-END -->/{s/<!-- NAME-START -->.*<!-- NAME-END -->/<!-- NAME-START -->$NAME<!-- NAME-END -->/}" README.md
+          sed -i -e "/<!-- LOGIN-START -->/,/<!-- LOGIN-END -->/{s/<!-- LOGIN-START -->.*<!-- LOGIN-END -->/<!-- LOGIN-START -->@$LOGIN<!-- LOGIN-END -->/}" README.md
+          sed -i "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
           echo "$BIO" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
 
       - name: Update Blog Posts
@@ -49,11 +49,8 @@ jobs:
             AVATAR_URL=$(curl -s https://api.github.com/users/$USER | jq -r '.avatar_url')
             FOLLOWER_CARDS="$FOLLOWER_CARDS<div style=\"display: inline-block; margin: 10px; text-align: center;\"><img src=\"$AVATAR_URL\" width=\"100\" height=\"100\" style=\"border-radius: 50%;\" alt=\"$USER\"/><br/><a href=\"https://github.com/$USER\">@$USER</a></div>"
           done
-          sed -i.bak "/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/{//!d;}" README.md
-          echo "$FOLLOWER_CARDS" | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
-
-      - name: Remove backup files
-        run: rm -f README.md.bak
+          sed -i "/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/{//!d;}" README.md
+          echo "$FOLLOWER_CARDS" | sed 's/^/ /' | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
 
       - name: Commit and Push Changes
         run: |
