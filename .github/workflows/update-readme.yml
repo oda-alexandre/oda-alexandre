@@ -32,22 +32,25 @@ jobs:
           LOGIN="${{ steps.userinfo.outputs.login }}"
           BIO="${{ steps.userinfo.outputs.bio }}"
           sed -i.bak -e "/<!-- NAME-START -->/,/<!-- NAME-END -->/{s/<!-- NAME-START -->.*<!-- NAME-END -->/<!-- NAME-START -->$NAME<!-- NAME-END -->/}" README.md
-          sed -i.bak -e "/<!-- LOGIN-START -->/,/<!-- LOGIN-END -->/{s/<!-- LOGIN-START -->.*<!-- LOGIN-END -->/<!-- LOGIN-START -->$LOGIN<!-- LOGIN-END -->/}" README.md
+          sed -i.bak -e "/<!-- LOGIN-START -->/,/<!-- LOGIN-END -->/{s/<!-- LOGIN-START -->.*<!-- LOGIN-END -->/<!-- LOGIN-START -->@$LOGIN<!-- LOGIN-END -->/}" README.md
           sed -i.bak "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
           echo "$BIO" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
 
-      # - name: Update Blog Posts
-      #   uses: gautamkrishnar/blog-post-workflow@master
-      #   with:
-      #     feed_list: "https://www.oda-alexandre.com/blog/feed"
+      - name: Update Blog Posts
+        uses: gautamkrishnar/blog-post-workflow@master
+        with:
+          feed_list: 'https://www.oda-alexandre.com/blog/feed'
 
       - name: Update Top Followers
         run: |
           TOP_FOLLOWERS=$(curl -s https://api.github.com/users/oda-alexandre/followers | jq -r '.[].login' | head -n 5)
-          FOLLOWERS_MARKDOWN=$(echo "$TOP_FOLLOWERS" | awk '{print "- " $1}')
-          FOLLOWERS_MARKDOWN=$(echo "$FOLLOWERS_MARKDOWN" | sed ':a;N;$!ba;s/\n/\\n/g')
+          FOLLOWER_CARDS=""
+          for USER in $TOP_FOLLOWERS; do
+            AVATAR_URL=$(curl -s https://api.github.com/users/$USER | jq -r '.avatar_url')
+            FOLLOWER_CARDS="$FOLLOWER_CARDS<div style=\"display: inline-block; margin: 10px; text-align: center;\"><img src=\"$AVATAR_URL\" width=\"100\" height=\"100\" style=\"border-radius: 50%;\" alt=\"$USER\"/><br/><a href=\"https://github.com/$USER\">@$USER</a></div>"
+          done
           sed -i.bak "/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/{//!d;}" README.md
-          echo "$FOLLOWERS_MARKDOWN" | sed 's/^/ /' | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
+          echo "$FOLLOWER_CARDS" | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
 
       - name: Commit and Push Changes
         run: |
