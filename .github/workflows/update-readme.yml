@@ -1,0 +1,38 @@
+name: Update README
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  push:
+    branches:
+      - main
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Update About Me
+        run: |
+          BIO=$(curl -s https://api.github.com/users/oda-alexandre | jq -r '.bio')
+          sed -i.bak "s|<!-- ABOUT-ME:START -->.*<!-- ABOUT-ME:END -->|<!-- ABOUT-ME:START -->\n$BIO\n<!-- ABOUT-ME:END -->|g" README.md
+
+      - name: Update Blog Posts
+        uses: gautamkrishnar/blog-post-workflow@master
+        with:
+          feed_list: "https://www.oda-alexandre.com/blog/feed"
+
+      - name: Update Top Followers
+        run: |
+          TOP_FOLLOWERS=$(curl -s https://api.github.com/users/oda-alexandre/followers | jq -r '.[].login' | head -n 5)
+          FOLLOWERS_MARKDOWN=$(echo "$TOP_FOLLOWERS" | awk '{print "- " $1}')
+          sed -i.bak "s|<!-- TOP-FOLLOWERS:START -->.*<!-- TOP-FOLLOWERS:END -->|<!-- TOP-FOLLOWERS:START -->\n$FOLLOWERS_MARKDOWN\n<!-- TOP-FOLLOWERS:END -->|g" README.md
+
+      - name: Commit and Push
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add README.md
+          git commit -m "Update README"
+          git push
