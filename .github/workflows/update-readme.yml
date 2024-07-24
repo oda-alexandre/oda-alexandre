@@ -19,9 +19,9 @@ jobs:
         id: userinfo
         run: |
           USER_INFO=$(curl -s https://api.github.com/users/oda-alexandre)
-          NAME=$(echo $USER_INFO | jq -r '.name')
-          LOGIN=$(echo $USER_INFO | jq -r '.login')
-          BIO=$(echo $USER_INFO | jq -r '.bio')
+          NAME=$(echo "$USER_INFO" | jq -r '.name')
+          LOGIN=$(echo "$USER_INFO" | jq -r '.login')
+          BIO=$(echo "$USER_INFO" | jq -r '.bio')
           echo "::set-output name=name::$NAME"
           echo "::set-output name=login::$LOGIN"
           echo "::set-output name=bio::$BIO"
@@ -31,8 +31,8 @@ jobs:
           NAME="${{ steps.userinfo.outputs.name }}"
           LOGIN="${{ steps.userinfo.outputs.login }}"
           BIO="${{ steps.userinfo.outputs.bio }}"
-          sed -i.bak "/<!-- NAME-START -->/,/<!-- NAME-END -->/{s/.*/## $NAME/}" README.md
-          sed -i.bak "/<!-- LOGIN-START -->/,/<!-- LOGIN-END -->/{s/.*/#### @$LOGIN/}" README.md
+          sed -i.bak -e "/<!-- NAME-START -->/,/<!-- NAME-END -->/{s/<!-- NAME-START -->.*<!-- NAME-END -->/<!-- NAME-START -->$NAME<!-- NAME-END -->/}" README.md
+          sed -i.bak -e "/<!-- LOGIN-START -->/,/<!-- LOGIN-END -->/{s/<!-- LOGIN-START -->.*<!-- LOGIN-END -->/<!-- LOGIN-START -->@$LOGIN<!-- LOGIN-END -->/}" README.md
           sed -i.bak "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
           echo "$BIO" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
 
