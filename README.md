@@ -10,16 +10,18 @@
 
 <div align="center">
 
-## <!-- NAME-START -->maitreoda<!-- NAME-END -->
+#### <!-- LOGIN-START -->MAITRE_ODA<!-- LOGIN-END -->
 
-#### <!-- LOGIN-START -->@oda-alexandre<!-- LOGIN-END -->
+## <!-- NAME-START -->ODA ALEXANDRE<!-- NAME-END -->
 
 <!-- ABOUT ME -->
 
 <div align="center">
 
 <!-- ABOUT-ME:START -->
- < Freelance DevSecOps | CyberSécurité | Architecte de Sécurité des Systèmes d'Information (ASSI) >
+
+< Freelance DevSecOps | CyberSécurité | Architecte de Sécurité des Systèmes d'Information (ASSI) >
+
 <!-- ABOUT-ME:END -->
 
 ![separator][separator]
@@ -72,7 +74,6 @@
 ### MY TOP FOLLOWERS
 
 <!-- TOP-FOLLOWERS:START -->
- - Neustradamus\n- aya\n- AmauryVanEspen\n- benifei\n- mfsiat
 <!-- TOP-FOLLOWERS:END -->
 
 ![separator][separator]
