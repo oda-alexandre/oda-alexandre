@@ -10,7 +10,7 @@
 
 <div align="center">
 
-#### <!-- LOGIN-START -->@oda-alexandre<!-- LOGIN-END -->
+#### <!-- LOGIN-START -->oda-alexandre<!-- LOGIN-END -->
 
 ## <!-- NAME-START -->maitreoda<!-- NAME-END -->
 
