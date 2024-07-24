@@ -19,9 +19,7 @@
 <div align="center">
 
 <!-- ABOUT-ME:START -->
-
 < Freelance DevSecOps | CyberSécurité | Architecte de Sécurité des Systèmes d'Information (ASSI) >
-
 <!-- ABOUT-ME:END -->
 
 ![separator][separator]
@@ -74,6 +72,11 @@
 ### MY TOP FOLLOWERS
 
 <!-- TOP-FOLLOWERS:START -->
+- Neustradamus
+- aya
+- AmauryVanEspen
+- benifei
+- mfsiat
 <!-- TOP-FOLLOWERS:END -->
 
 ![separator][separator]
