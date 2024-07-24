@@ -10,18 +10,16 @@
 
 <div align="center">
 
-## <!-- NAME-START -->MAITREODA<!-- NAME-END -->
+## <!-- NAME-START -->maitreoda<!-- NAME-END -->
 
-#### <!-- LOGIN-START -->ODA ALEXANDRE<!-- LOGIN-END -->
+#### <!-- LOGIN-START -->oda-alexandre<!-- LOGIN-END -->
 
 <!-- ABOUT ME -->
 
 <div align="center">
 
 <!-- ABOUT-ME:START -->
-
-< Freelance DevSecOps | CyberSécurité | Architecte de Sécurité des Systèmes d'Information (ASSI) >
-
+ < Freelance DevSecOps | CyberSécurité | Architecte de Sécurité des Systèmes d'Information (ASSI) >
 <!-- ABOUT-ME:END -->
 
 ![separator][separator]
@@ -103,6 +101,7 @@
 
 <div style="display: flex; justify-content: center; flex-wrap: wrap;">
 <!-- TOP-FOLLOWERS:START -->
+<div style="display: inline-block; margin: 10px; text-align: center;"><img src="https://avatars.githubusercontent.com/u/104737?v=4" width="100" height="100" style="border-radius: 50%; object-fit: cover;" alt="Neustradamus"/><br/><a href="https://github.com/Neustradamus">@Neustradamus</a></div><div style="display: inline-block; margin: 10px; text-align: center;"><img src="https://avatars.githubusercontent.com/u/155455?v=4" width="100" height="100" style="border-radius: 50%; object-fit: cover;" alt="aya"/><br/><a href="https://github.com/aya">@aya</a></div><div style="display: inline-block; margin: 10px; text-align: center;"><img src="https://avatars.githubusercontent.com/u/4487041?v=4" width="100" height="100" style="border-radius: 50%; object-fit: cover;" alt="AmauryVanEspen"/><br/><a href="https://github.com/AmauryVanEspen">@AmauryVanEspen</a></div><div style="display: inline-block; margin: 10px; text-align: center;"><img src="https://avatars.githubusercontent.com/u/6726643?v=4" width="100" height="100" style="border-radius: 50%; object-fit: cover;" alt="benifei"/><br/><a href="https://github.com/benifei">@benifei</a></div><div style="display: inline-block; margin: 10px; text-align: center;"><img src="https://avatars.githubusercontent.com/u/12368038?v=4" width="100" height="100" style="border-radius: 50%; object-fit: cover;" alt="mfsiat"/><br/><a href="https://github.com/mfsiat">@mfsiat</a></div>
 <!-- TOP-FOLLOWERS:END -->
 </div>
 
