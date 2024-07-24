@@ -36,6 +36,7 @@ jobs:
           sed -i.bak -e "/<!-- LOGIN-START -->/,/<!-- LOGIN-END -->/{s/<!-- LOGIN-START -->.*<!-- LOGIN-END -->/<!-- LOGIN-START -->@$LOGIN<!-- LOGIN-END -->/}" README.md
           sed -i.bak "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
           echo "$BIO" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
+          rm README.md.bak
 
       - name: Fetch and Update Followers
         run: |
@@ -51,11 +52,11 @@ jobs:
           done
           sed -i.bak "/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/{//!d;}" README.md
           echo "$FOLLOWER_CARDS" | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
+          rm README.md.bak
 
       - name: Commit and Push Changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add README.md
-          git commit -m "Update README with latest information"
-          git push
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update README with latest information" && git push)
