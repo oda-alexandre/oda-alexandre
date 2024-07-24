@@ -35,6 +35,7 @@ jobs:
         run: |
           TOP_FOLLOWERS=$(curl -s https://api.github.com/users/oda-alexandre/followers | jq -r '.[].login' | head -n 5)
           FOLLOWERS_MARKDOWN=$(echo "$TOP_FOLLOWERS" | awk '{print "- " $1}')
+          FOLLOWERS_MARKDOWN=$(echo "$FOLLOWERS_MARKDOWN" | sed ':a;N;$!ba;s/\n/\\n/g')
           sed -i.bak "/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/{//!d;}" README.md
           sed -i "/<!-- TOP-FOLLOWERS:START -->/a $FOLLOWERS_MARKDOWN" README.md
 
