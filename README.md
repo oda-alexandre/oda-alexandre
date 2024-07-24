@@ -10,16 +10,18 @@
 
 <div align="center">
 
-## <!-- NAME-START -->maitreoda<!-- NAME-END -->
+## <!-- LOGIN-START -->ODA ALEXANDRE<!-- LOGIN-END -->
 
-#### <!-- LOGIN-START -->oda-alexandre<!-- LOGIN-END -->
+#### <!-- NAME-START -->MAITREODA<!-- NAME-END -->
 
 <!-- ABOUT ME -->
 
 <div align="center">
 
 <!-- ABOUT-ME:START -->
- < Freelance DevSecOps | CyberSécurité | Architecte de Sécurité des Systèmes d'Information (ASSI) >
+
+< Freelance DevSecOps | CyberSécurité | Architecte de Sécurité des Systèmes d'Information (ASSI) >
+
 <!-- ABOUT-ME:END -->
 
 ![separator][separator]
@@ -46,7 +48,7 @@
 
 ![Readme Streak](https://github-readme-streak-stats.herokuapp.com?user=oda-alexandre&theme=dark&hide_border=true&stroke=116466&ring=116466&fire=116466&currStreakLabel=FFFFFF&layout=compact 'Readme Streak')
 
-![Readme Stats](https://github-readme-stats.vercel.app/api?username=oda-alexandre&show_icons=true&hide_border=true&title_color=116466&theme=dark&layout=compact&include_all_commits=true&icon_color=116466&hide_title=true 'Readme Stats')
+![Readme Stats](https://github-readme-stats.vercel.app/api?username=oda-alexandre&show_icons=true&rank_icon=github&hide_border=true&title_color=116466&theme=dark&layout=compact&include_all_commits=true&icon_color=116466&hide_title=true 'Readme Stats')
 
 ![separator][separator]
 
@@ -60,7 +62,36 @@
 
 <div>
 
-![Most Used Languages](https://github-profile-trophy.vercel.app/?username=oda-alexandre&no-frame=true&&no-bg=true&theme=algolia 'Most Used Languages')
+![Most Used Languages](https://github-readme-stats.vercel.app/api/top-langs?username=oda-alexandre&title_color=116466&theme=dark&layout=compact 'Most Used Languages')
+
+![separator][separator]
+
+</div>
+
+<!-- GITHUB TROPHY -->
+
+<div align="center">
+
+### MY GITHUB TROPHY
+
+<div>
+
+![My Github Trophy](https://github-profile-trophy.vercel.app/?username=oda-alexandre&no-frame=true&&no-bg=true&theme=algolia 'My Github Trophy')
+
+![separator][separator]
+
+</div>
+
+<!-- TOP FOLLOWERS -->
+
+<div align="center">
+
+### MY TOP FOLLOWERS
+
+<div style="display: flex; justify-content: center; flex-wrap: wrap;">
+<!-- TOP-FOLLOWERS:START -->
+<!-- TOP-FOLLOWERS:END -->
+</div>
 
 ![separator][separator]
 
@@ -74,22 +105,6 @@
 
 <!-- BLOG-POST:START -->
 <!-- BLOG-POST:END -->
-
-![separator][separator]
-
-</div>
-
-<!-- TOP FOLLOWERS -->
-
-<div align="center">
-
-### MY TOP FOLLOWERS
-
-<div>
-<!-- TOP-FOLLOWERS:START -->
-<div style="display: inline-block; margin: 10px; text-align: center;"><img src="https://avatars.githubusercontent.com/u/104737?v=4" width="100" height="100" style="border-radius: 50%; object-fit: cover;" alt="Neustradamus"/><br/><a href="https://github.com/Neustradamus">@Neustradamus</a></div><div style="display: inline-block; margin: 10px; text-align: center;"><img src="https://avatars.githubusercontent.com/u/155455?v=4" width="100" height="100" style="border-radius: 50%; object-fit: cover;" alt="aya"/><br/><a href="https://github.com/aya">@aya</a></div><div style="display: inline-block; margin: 10px; text-align: center;"><img src="https://avatars.githubusercontent.com/u/4487041?v=4" width="100" height="100" style="border-radius: 50%; object-fit: cover;" alt="AmauryVanEspen"/><br/><a href="https://github.com/AmauryVanEspen">@AmauryVanEspen</a></div><div style="display: inline-block; margin: 10px; text-align: center;"><img src="https://avatars.githubusercontent.com/u/6726643?v=4" width="100" height="100" style="border-radius: 50%; object-fit: cover;" alt="benifei"/><br/><a href="https://github.com/benifei">@benifei</a></div><div style="display: inline-block; margin: 10px; text-align: center;"><img src="https://avatars.githubusercontent.com/u/12368038?v=4" width="100" height="100" style="border-radius: 50%; object-fit: cover;" alt="mfsiat"/><br/><a href="https://github.com/mfsiat">@mfsiat</a></div>
-<!-- TOP-FOLLOWERS:END -->
-</div>
 
 ![separator][separator]
 
