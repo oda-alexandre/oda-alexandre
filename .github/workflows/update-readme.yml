@@ -22,19 +22,16 @@ jobs:
           NAME=$(echo "$USER_INFO" | jq -r '.name')
           LOGIN=$(echo "$USER_INFO" | jq -r '.login')
           BIO=$(echo "$USER_INFO" | jq -r '.bio')
-          echo "::set-output name=name::$NAME"
-          echo "::set-output name=login::$LOGIN"
-          echo "::set-output name=bio::$BIO"
+          echo "name=$NAME" >> $GITHUB_ENV
+          echo "login=$LOGIN" >> $GITHUB_ENV
+          echo "bio=$BIO" >> $GITHUB_ENV
 
       - name: Update README with User Info
         run: |
-          NAME="${{ steps.userinfo.outputs.name }}"
-          LOGIN="${{ steps.userinfo.outputs.login }}"
-          BIO="${{ steps.userinfo.outputs.bio }}"
-          sed -i -e "/<!-- NAME-START -->/,/<!-- NAME-END -->/{s/<!-- NAME-START -->.*<!-- NAME-END -->/<!-- NAME-START -->$NAME<!-- NAME-END -->/}" README.md
-          sed -i -e "/<!-- LOGIN-START -->/,/<!-- LOGIN-END -->/{s/<!-- LOGIN-START -->.*<!-- LOGIN-END -->/<!-- LOGIN-START -->@$LOGIN<!-- LOGIN-END -->/}" README.md
+          sed -i -e "/<!-- NAME-START -->/,/<!-- NAME-END -->/{s/<!-- NAME-START -->.*<!-- NAME-END -->/<!-- NAME-START -->${{ env.name }}<!-- NAME-END -->/}" README.md
+          sed -i -e "/<!-- LOGIN-START -->/,/<!-- LOGIN-END -->/{s/<!-- LOGIN-START -->.*<!-- LOGIN-END -->/<!-- LOGIN-START -->@${{ env.login }}<!-- LOGIN-END -->/}" README.md
           sed -i "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
-          echo "$BIO" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
+          echo "${{ env.bio }}" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
 
       - name: Update Blog Posts
         uses: gautamkrishnar/blog-post-workflow@master
