@@ -33,8 +33,13 @@ jobs:
         
         # Créer la liste formatée pour le README
         output="## Followers\n\n"
+        count=0
         for username in $usernames; do
           output+="[![$username](https://github.com/$username.png?size=50)](https://github.com/$username) "
+          count=$((count + 1))
+          if [ $((count % 8)) -eq 0 ]; then
+            output+="\n\n"
+          fi
         done
         
         # Mettre à jour le README
