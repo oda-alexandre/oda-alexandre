@@ -45,7 +45,7 @@ jobs:
 
       - name: Update README
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.README_TOKEN }}
         run: |
           const { Octokit } = require("@octokit/rest");
           const fs = require('fs');
