@@ -21,17 +21,21 @@ jobs:
         run: |
           USER_INFO=$(curl -s https://api.github.com/users/oda-alexandre)
           NAME=$(echo "$USER_INFO" | jq -r '.name')
+          LOGIN=$(echo "$USER_INFO" | jq -r '.login')
           BIO=$(echo "$USER_INFO" | jq -r '.bio')
           echo "::set-output name=name::$NAME"
+          echo "::set-output name=login::$LOGIN"
           echo "::set-output name=bio::$BIO"
 
       - name: Update README with User Info
         run: |
           NAME="${{ steps.userinfo.outputs.name }}"
+          LOGIN="${{ steps.userinfo.outputs.login }}"
           BIO="${{ steps.userinfo.outputs.bio }}"
           sed -i -e "/<!-- NAME-START -->/,/<!-- NAME-END -->/{s/<!-- NAME-START -->.*<!-- NAME-END -->/<!-- NAME-START -->$NAME<!-- NAME-END -->/}" README.md
+          sed -i -e "/<!-- LOGIN-START -->/,/<!-- LOGIN-END -->/{s/<!-- LOGIN-START -->.*<!-- LOGIN-END -->/<!-- LOGIN-START -->$LOGIN<!-- LOGIN-END -->/}" README.md
           sed -i "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
-          echo "$BIO" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
+          echo "**$BIO**" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
 
       - name: Fetch and Update Followers
         run: |
@@ -42,12 +46,18 @@ jobs:
               echo ${row} | base64 --decode | jq -r ${1}
             }
             LOGIN=$(_jq '.login')
-            FOLLOWER_CARDS="$FOLLOWER_CARDS[![$LOGIN](https://img.shields.io/github/followers/$LOGIN?label=$LOGIN&style=for-the-badge&logo=github&logoColor=white&labelColor=0A66C2&color=0A66C2)](https://github.com/$LOGIN) "
+            FOLLOWER_CARDS="$FOLLOWER_CARDS[![$LOGIN](https://img.shields.io/github/followers/$LOGIN?label=$LOGIN&style=for-the-badge&logo=github&logoColor=white&labelColor=116466&color=116466)](https://github.com/$LOGIN) "
           done
           sed -i "/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/{//!d;}" README.md
           echo "<div style=\"display: flex; flex-wrap: wrap; gap: 5px;\">" >> README.md
           echo "$FOLLOWER_CARDS" | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
           echo "</div>" >> README.md
+
+      # - name: Update Blog Posts
+      #   uses: gautamkrishnar/blog-post-workflow@master
+      #   with:
+      #     max_post_count: '4'
+      #     feed_list: 'https://www.oda-alexandre.com/blog/feed'
 
       - name: Commit and Push Changes
         run: |
