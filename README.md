@@ -1,4 +1,4 @@
 ## Followers
 
-<!-- TOP-FOLLOWERS:START -->
-<!-- TOP-FOLLOWERS:END -->
+<!--ACTION_START_FLAG:github-followers-->
+<!--ACTION_END_FLAG:github-followers-->
