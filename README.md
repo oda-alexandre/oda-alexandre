@@ -94,8 +94,6 @@
 
 <!-- TOP FOLLOWERS -->
 
-<div style="display: flex; justify-content: center; flex-wrap: wrap;">
-
 ### MY TOP FOLLOWERS
 
 <!-- TOP-FOLLOWERS:START -->
