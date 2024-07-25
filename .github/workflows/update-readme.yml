@@ -1,65 +1,39 @@
 name: Update README with Followers
 
 on:
-  schedule:
-    - cron: '0 * * * *'  # Met à jour chaque heure
   push:
     branches:
       - main
+  schedule:
+    - cron: '0 * * * *'  # Met à jour chaque heure
 
 jobs:
-  update-readme:
+  github_followers_job:
     runs-on: ubuntu-latest
-
+    name: A job to display GitHub followers in your profile
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: '14'
-
-      - name: Install Dependencies
-        run: npm install @octokit/rest
-
-      - name: Update README
+      - name: Use github-followers-action to update README.md
+        id: github-follower
+        uses: JieDing/github-followers-action@v1.0.1
         env:
-          README_TOKEN: ${{ secrets.README_TOKEN }}
+          LOGIN: ${{ github.repository_owner }}
+          PAT: ${{ secrets.README_TOKEN }}
+
+      - name: Commit changes
         run: |
-          node -e "
-            import { Octokit } from '@octokit/rest';
-            import { readFileSync, writeFileSync } from 'fs';
-
-            const octokit = new Octokit({ auth: process.env.README_TOKEN });
-
-            async function getFollowers() {
-              const followers = await octokit.paginate(octokit.users.listFollowersForUser, {
-                username: 'VotreNomUtilisateur'
-              });
-              return followers;
-            }
-
-            async function updateReadme() {
-              const followers = await getFollowers();
-              const followerList = followers.map(follower => \`- [\${follower.login}](\${follower.html_url})\`).join('\n');
-
-              const readmeContent = readFileSync('README.md', 'utf8');
-              const updatedContent = readmeContent.replace(
-                /<!-- FOLLOWERS-LIST:START -->[\\s\\S]*<!-- FOLLOWERS-LIST:END -->/,
-                \`<!-- FOLLOWERS-LIST:START -->\n\${followerList}\n<!-- FOLLOWERS-LIST:END -->\`
-              );
-
-              writeFileSync('README.md', updatedContent);
-            }
-
-            updateReadme();
-          "
-
-      - name: Commit and Push changes
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
           git add README.md
-          git commit -m 'Update README with latest followers'
+          git commit -m "Update README with latest followers"
           git push
+
+      - name: Pull changes
+        run: git pull -r
+
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.README_TOKEN }}
+          branch: ${{ github.ref }}
