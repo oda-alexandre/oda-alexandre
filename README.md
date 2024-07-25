@@ -6,20 +6,15 @@
 
 </div>
 
-<!-- NAME ALIAS ACTIVITIES -->
-
-<div align="center">
-
-## <!-- LOGIN-START -->oda-alexandre<!-- LOGIN-END -->
-
-#### <!-- NAME-START -->maitreoda<!-- NAME-END -->
-
 <!-- ABOUT ME -->
 
 <div align="center">
 
+## <!-- NAME-START -->maitreoda<!-- NAME-END -->
+
+<div align="center">
+
 <!-- ABOUT-ME:START -->
- < Freelance DevSecOps | CyberSécurité | Architecte de Sécurité des Systèmes d'Information (ASSI) >
 <!-- ABOUT-ME:END -->
 
 ![separator][separator]
@@ -31,85 +26,6 @@
 <div align="center">
 
 [![Linkedin][linkedin_shield]][linkedin_url]
-
-![separator][separator]
-
-</div>
-
-<!-- GITHUB STATS -->
-
-<div align="center">
-
-### GITHUB STATS
-
-<div>
-
-![Readme Streak](https://github-readme-streak-stats.herokuapp.com?user=oda-alexandre&theme=dark&hide_border=true&stroke=116466&ring=116466&fire=116466&currStreakLabel=FFFFFF&layout=compact 'Readme Streak')
-
-![Readme Stats](https://github-readme-stats.vercel.app/api?username=oda-alexandre&show_icons=true&rank_icon=github&hide_border=true&title_color=116466&theme=dark&layout=compact&include_all_commits=true&icon_color=116466&hide_title=true 'Readme Stats')
-
-![separator][separator]
-
-</div>
-
-<!-- MOST USED LANGUAGES -->
-
-<div align="center">
-
-### MOST USED LANGUAGES
-
-<div>
-
-![Most Used Languages](https://github-readme-stats.vercel.app/api/top-langs?username=oda-alexandre&title_color=116466&theme=dark&hide_border=true&layout=compact 'Most Used Languages')
-
-![separator][separator]
-
-</div>
-
-<!-- GITHUB TROPHY -->
-
-<div align="center">
-
-### MY GITHUB TROPHY
-
-<div>
-
-![My Github Trophy](https://github-profile-trophy.vercel.app/?username=oda-alexandre&no-frame=true&&no-bg=true&theme=algolia 'My Github Trophy')
-
-![separator][separator]
-
-</div>
-
-<!-- SKILLS -->
-
-<div align="center">
-
-### SKILLS
-
-#### Programming Languages
-
-</div>
-
-<div>
-
-![separator][separator]
-
-</div>
-
-<!-- TOP FOLLOWERS -->
-
-<div align="center">
-
-### MY TOP FOLLOWERS
-
-**I thank all my followers**
-
-![GitHub followers](https://img.shields.io/github/followers/oda-alexandre?label=Followers&style=social)
-
-<!-- TOP-FOLLOWERS:START -->
-[![Neustradamus](https://img.shields.io/github/followers/Neustradamus?label=Neustradamus&style=social)](https://github.com/Neustradamus) [![aya](https://img.shields.io/github/followers/aya?label=aya&style=social)](https://github.com/aya) [![AmauryVanEspen](https://img.shields.io/github/followers/AmauryVanEspen?label=AmauryVanEspen&style=social)](https://github.com/AmauryVanEspen) [![benifei](https://img.shields.io/github/followers/benifei?label=benifei&style=social)](https://github.com/benifei) [![mfsiat](https://img.shields.io/github/followers/mfsiat?label=mfsiat&style=social)](https://github.com/mfsiat) [![baptiste-dauphin](https://img.shields.io/github/followers/baptiste-dauphin?label=baptiste-dauphin&style=social)](https://github.com/baptiste-dauphin) [![RBLEC](https://img.shields.io/github/followers/RBLEC?label=RBLEC&style=social)](https://github.com/RBLEC) [![D0ntTrustMe](https://img.shields.io/github/followers/D0ntTrustMe?label=D0ntTrustMe&style=social)](https://github.com/D0ntTrustMe) [![fantomas2b](https://img.shields.io/github/followers/fantomas2b?label=fantomas2b&style=social)](https://github.com/fantomas2b) [![5l1v3r1](https://img.shields.io/github/followers/5l1v3r1?label=5l1v3r1&style=social)](https://github.com/5l1v3r1) [![eust-w](https://img.shields.io/github/followers/eust-w?label=eust-w&style=social)](https://github.com/eust-w) [![CisKolea](https://img.shields.io/github/followers/CisKolea?label=CisKolea&style=social)](https://github.com/CisKolea) [![MorpheusH3x](https://img.shields.io/github/followers/MorpheusH3x?label=MorpheusH3x&style=social)](https://github.com/MorpheusH3x) [![Skoatpalace](https://img.shields.io/github/followers/Skoatpalace?label=Skoatpalace&style=social)](https://github.com/Skoatpalace) [![szpx](https://img.shields.io/github/followers/szpx?label=szpx&style=social)](https://github.com/szpx) [![sdsnake](https://img.shields.io/github/followers/sdsnake?label=sdsnake&style=social)](https://github.com/sdsnake) [![xma899](https://img.shields.io/github/followers/xma899?label=xma899&style=social)](https://github.com/xma899) [![Stirling82](https://img.shields.io/github/followers/Stirling82?label=Stirling82&style=social)](https://github.com/Stirling82) [![A73X](https://img.shields.io/github/followers/A73X?label=A73X&style=social)](https://github.com/A73X) [![saladtosser](https://img.shields.io/github/followers/saladtosser?label=saladtosser&style=social)](https://github.com/saladtosser) [![mmdhgh](https://img.shields.io/github/followers/mmdhgh?label=mmdhgh&style=social)](https://github.com/mmdhgh) [![Ugoboby](https://img.shields.io/github/followers/Ugoboby?label=Ugoboby&style=social)](https://github.com/Ugoboby) [![elyasrz](https://img.shields.io/github/followers/elyasrz?label=elyasrz&style=social)](https://github.com/elyasrz) [![AegisTaaltec](https://img.shields.io/github/followers/AegisTaaltec?label=AegisTaaltec&style=social)](https://github.com/AegisTaaltec) [![MrNullus](https://img.shields.io/github/followers/MrNullus?label=MrNullus&style=social)](https://github.com/MrNullus) [![Chronoz55](https://img.shields.io/github/followers/Chronoz55?label=Chronoz55&style=social)](https://github.com/Chronoz55) [![fair3n](https://img.shields.io/github/followers/fair3n?label=fair3n&style=social)](https://github.com/fair3n) [![xiaomui21](https://img.shields.io/github/followers/xiaomui21?label=xiaomui21&style=social)](https://github.com/xiaomui21) 
-<!-- TOP-FOLLOWERS:END -->
-</div>
 
 ![separator][separator]
 
@@ -128,6 +44,51 @@
 
 </div>
 
+<!-- GITHUB STATS -->
+
+<div align="center">
+
+### GITHUB STATS
+
+![Readme Streak](https://github-readme-streak-stats.herokuapp.com?user=oda-alexandre&theme=dark&hide_border=true&stroke=116466&ring=116466&fire=116466&currStreakLabel=FFFFFF&layout=compact 'Readme Streak')
+
+![Readme Stats](https://github-readme-stats.vercel.app/api?username=oda-alexandre&show_icons=true&rank_icon=github&hide_border=true&title_color=116466&theme=dark&layout=compact&include_all_commits=true&icon_color=116466&hide_title=true 'Readme Stats')
+
+![separator][separator]
+
+</div>
+
+<!-- MOST USED LANGUAGES -->
+
+<div align="center">
+
+### MOST USED LANGUAGES
+
+![Most Used Languages](https://github-readme-stats.vercel.app/api/top-langs?username=oda-alexandre&title_color=116466&theme=dark&hide_border=true&layout=compact 'Most Used Languages')
+
+![separator][separator]
+
+</div>
+
+<!-- GITHUB TROPHY -->
+
+<div align="center">
+
+<!-- TOP FOLLOWERS -->
+
+<div align="center">
+
+**I thank all my followers**
+
+![GitHub followers](https://img.shields.io/github/followers/oda-alexandre?label=Followers&color=white)
+
+<!-- TOP-FOLLOWERS:START -->
+<!-- TOP-FOLLOWERS:END -->
+
+![separator][separator]
+
+</div>
+
 <!-- MARKDOWN SOCIAL NETWORKS -->
 
 [linkedin_shield]: https://img.shields.io/badge/Linkedin-116466?style=for-the-badge&logo=Linkedin&logoColor=white
@@ -136,13 +97,3 @@
 <!-- MARKDOWN IMAGES -->
 
 [separator]: https://user-images.githubusercontent.com/43296168/132062615-3b18c43a-fa5f-45f2-99c3-4b831cde910e.gif
-<div style="display: flex; flex-wrap: wrap; justify-content: center;">
-</div>
-<div style="display: flex; flex-wrap: wrap; justify-content: center;">
-</div>
-<div style="display: flex; flex-wrap: wrap; justify-content: center;">
-</div>
-<div style="display: flex; flex-wrap: wrap; justify-content: center;">
-</div>
-<div style="display: flex; flex-wrap: wrap; justify-content: center;">
-</div>
