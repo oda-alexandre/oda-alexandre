@@ -1,59 +1,68 @@
-name: Update Followers
+name: Update README
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Exécute toutes les heures
+    - cron: '0 * * * *'
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
-  update-followers:
+  update-readme:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Checkout Repository
+        uses: actions/checkout@v2
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v2
-      with:
-        node-version: '14'
+      - name: Fetch GitHub User Info
+        id: userinfo
+        run: |
+          USER_INFO=$(curl -s https://api.github.com/users/oda-alexandre)
+          NAME=$(echo "$USER_INFO" | jq -r '.name')
+          LOGIN=$(echo "$USER_INFO" | jq -r '.login')
+          BIO=$(echo "$USER_INFO" | jq -r '.bio')
+          echo "::set-output name=name::$NAME"
+          echo "::set-output name=login::$LOGIN"
+          echo "::set-output name=bio::$BIO"
 
-    - name: Install jq and curl
-      run: sudo apt-get install jq curl
+      - name: Update README with User Info
+        run: |
+          NAME="${{ steps.userinfo.outputs.name }}"
+          LOGIN="${{ steps.userinfo.outputs.login }}"
+          BIO="${{ steps.userinfo.outputs.bio }}"
+          sed -i -e "/<!-- NAME-START -->/,/<!-- NAME-END -->/{s/<!-- NAME-START -->.*<!-- NAME-END -->/<!-- NAME-START -->$NAME<!-- NAME-END -->/}" README.md
+          sed -i -e "/<!-- LOGIN-START -->/,/<!-- LOGIN-END -->/{s/<!-- LOGIN-START -->.*<!-- LOGIN-END -->/<!-- LOGIN-START -->$LOGIN<!-- LOGIN-END -->/}" README.md
+          sed -i "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
+          echo "$BIO" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
 
-    - name: Fetch followers and update README
-      run: |
-        # Récupérer les followers
-        followers=$(curl -s https://api.github.com/users/oda-alexandre/followers)
-        
-        # Extraire les noms d'utilisateur des followers
-        usernames=$(echo $followers | jq -r '.[].login')
-        
-        # Créer la liste formatée pour le README
-        output="## Followers\n\n"
-        for username in $usernames; do
-          # Vérifier si l'utilisateur a une image de profil personnalisée
-          response=$(curl -s -o /dev/null -w "%{http_code}" https://github.com/$username.png)
-          if [ "$response" = "200" ]; then
-            image_url="https://github.com/$username.png?size=50"
-          else
-            # Utiliser une image de remplacement si pas d'image personnalisée
-            image_url="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
-          fi
-          output+="<a href=\"https://github.com/$username\"><img src=\"$image_url\" width=\"50px\" height=\"50px\" alt=\"$username\"></a> "
-        done
-        
-        # Mettre à jour le README
-        sed -i '/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/c\<!-- TOP-FOLLOWERS:START -->\n'"$output"'\n<!-- TOP-FOLLOWERS:END -->' README.md
+      - name: Fetch and Update Followers
+        run: |
+          FOLLOWERS=$(curl -s https://api.github.com/users/oda-alexandre/followers)
+          FOLLOWER_CARDS=""
+          for row in $(echo "${FOLLOWERS}" | jq -r '.[] | @base64'); do
+            _jq() {
+              echo ${row} | base64 --decode | jq -r ${1}
+            }
+            LOGIN=$(_jq '.login')
+            FOLLOWER_CARDS="$FOLLOWER_CARDS[![$LOGIN](https://img.shields.io/github/followers/$LOGIN?label=$LOGIN&style=social)](https://github.com/$LOGIN) "
+          done
+          sed -i "/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/{//!d;}" README.md
+          echo "<div style=\"display: flex; flex-wrap: wrap; justify-content: center;\">" >> README.md
+          echo "$FOLLOWER_CARDS" | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
+          echo "</div>" >> README.md
 
-    - name: Commit and push changes
-      run: |
-        git config --global user.name 'github-actions[bot]'
-        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-        git add README.md
-        git commit -m 'Update followers list' || echo "No changes to commit"
-        git push
-      env:
-        GITHUB_TOKEN: ${{ secrets.README_TOKEN }}
+      # - name: Update Blog Posts
+      #   uses: gautamkrishnar/blog-post-workflow@master
+      #   with:
+      #     max_post_count: '4'
+      #     feed_list: 'https://www.oda-alexandre.com/blog/feed'
+
+      - name: Commit and Push Changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add README.md
+          git commit -m "Update README with latest information"
+          git push
