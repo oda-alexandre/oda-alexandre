@@ -19,7 +19,7 @@
 <div align="center">
 
 <!-- ABOUT-ME:START -->
- **< Freelance DevSecOps | CyberSécurité | Architecte de Sécurité des Systèmes d'Information (ASSI) >**
+ < Freelance DevSecOps | CyberSécurité | Architecte de Sécurité des Systèmes d'Information (ASSI) >
 <!-- ABOUT-ME:END -->
 
 ![separator][separator]
@@ -136,6 +136,8 @@
 <!-- MARKDOWN IMAGES -->
 
 [separator]: https://user-images.githubusercontent.com/43296168/132062615-3b18c43a-fa5f-45f2-99c3-4b831cde910e.gif
+<div style="display: flex; flex-wrap: wrap; justify-content: center;">
+</div>
 <div style="display: flex; flex-wrap: wrap; justify-content: center;">
 </div>
 <div style="display: flex; flex-wrap: wrap; justify-content: center;">
