@@ -28,11 +28,10 @@ jobs:
       - name: Update README with User Info
         run: |
           NAME="${{ steps.userinfo.outputs.name }}"
-          LOGIN="${{ steps.userinfo.outputs.login }}"
           BIO="${{ steps.userinfo.outputs.bio }}"
           sed -i -e "/<!-- NAME-START -->/,/<!-- NAME-END -->/{s/<!-- NAME-START -->.*<!-- NAME-END -->/<!-- NAME-START -->$NAME<!-- NAME-END -->/}" README.md
           sed -i "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
-          echo "**$BIO**" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
+          echo "$BIO" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
 
       - name: Fetch and Update Followers
         run: |
@@ -49,12 +48,6 @@ jobs:
           echo "<div style=\"display: flex; flex-wrap: wrap; justify-content: center;\">" >> README.md
           echo "$FOLLOWER_CARDS" | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
           echo "</div>" >> README.md
-
-      # - name: Update Blog Posts
-      #   uses: gautamkrishnar/blog-post-workflow@master
-      #   with:
-      #     max_post_count: '4'
-      #     feed_list: 'https://www.oda-alexandre.com/blog/feed'
 
       - name: Commit and Push Changes
         run: |
