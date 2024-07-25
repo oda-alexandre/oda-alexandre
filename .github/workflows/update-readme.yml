@@ -27,15 +27,15 @@ jobs:
           echo "::set-output name=login::$LOGIN"
           echo "::set-output name=bio::$BIO"
 
-      - name: Update README with User Info
-        run: |
-          NAME="${{ steps.userinfo.outputs.name }}"
-          LOGIN="${{ steps.userinfo.outputs.login }}"
-          BIO="${{ steps.userinfo.outputs.bio }}"
-          sed -i.bak -e "/<!-- NAME-START -->/,/<!-- NAME-END -->/{s/<!-- NAME-START -->.*<!-- NAME-END -->/<!-- NAME-START -->$NAME<!-- NAME-END -->/}" README.md
-          sed -i.bak -e "/<!-- LOGIN-START -->/,/<!-- LOGIN-END -->/{s/<!-- LOGIN-START -->.*<!-- LOGIN-END -->/<!-- LOGIN-START -->@$LOGIN<!-- LOGIN-END -->/}" README.md
-          sed -i.bak "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
-          echo "$BIO" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
+      # - name: Update README with User Info
+      #   run: |
+      #     NAME="${{ steps.userinfo.outputs.name }}"
+      #     LOGIN="${{ steps.userinfo.outputs.login }}"
+      #     BIO="${{ steps.userinfo.outputs.bio }}"
+      #     sed -i.bak -e "/<!-- NAME-START -->/,/<!-- NAME-END -->/{s/<!-- NAME-START -->.*<!-- NAME-END -->/<!-- NAME-START -->$NAME<!-- NAME-END -->/}" README.md
+      #     sed -i.bak -e "/<!-- LOGIN-START -->/,/<!-- LOGIN-END -->/{s/<!-- LOGIN-START -->.*<!-- LOGIN-END -->/<!-- LOGIN-START -->@$LOGIN<!-- LOGIN-END -->/}" README.md
+      #     sed -i.bak "/<!-- ABOUT-ME:START -->/,/<!-- ABOUT-ME:END -->/{//!d;}" README.md
+      #     echo "$BIO" | sed 's/^/ /' | sed -i "/<!-- ABOUT-ME:START -->/r /dev/stdin" README.md
 
       # - name: Update Blog Posts
       #   uses: gautamkrishnar/blog-post-workflow@master
