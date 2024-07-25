@@ -20,8 +20,8 @@ jobs:
       with:
         node-version: '14'
 
-    - name: Install jq
-      run: sudo apt-get install jq
+    - name: Install jq and curl
+      run: sudo apt-get install jq curl
 
     - name: Fetch followers and update README
       run: |
@@ -34,9 +34,15 @@ jobs:
         # Créer la liste formatée pour le README
         output="## Followers\n\n"
         for username in $usernames; do
-          # Récupérer l'URL de l'image de profil
-          profile_image="https://github.com/$username.png?size=50"
-          output+="[![$username]($profile_image)](https://github.com/$username) "
+          # Vérifier si l'utilisateur a une image de profil personnalisée
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://github.com/$username.png)
+          if [ "$response" = "200" ]; then
+            image_url="https://github.com/$username.png?size=50"
+          else
+            # Utiliser une image de remplacement si pas d'image personnalisée
+            image_url="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+          fi
+          output+="<a href=\"https://github.com/$username\"><img src=\"$image_url\" width=\"50px\" height=\"50px\" alt=\"$username\"></a> "
         done
         
         # Mettre à jour le README
