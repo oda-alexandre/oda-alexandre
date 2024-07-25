@@ -16,7 +16,7 @@ jobs:
 
       - name: Use github-followers-action to update README.md
         id: github-follower
-        uses: JieDing/github-followers-action@v1.0.1
+        uses: JieDing/github-followers-action@main
         env:
           LOGIN: ${{ github.repository_owner }}
           PAT: ${{ secrets.README_TOKEN }}
@@ -26,7 +26,7 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add README.md
-          git commit -m "Update README with latest followers"
+          git diff --quiet || git commit -m "Update README with latest followers"
           git push
 
       - name: Pull changes
