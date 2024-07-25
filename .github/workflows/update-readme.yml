@@ -37,10 +37,7 @@ jobs:
           output+="- [$username](https://github.com/$username)\n"
         done
         
-        # Écrire dans le README
-        echo -e "$output" > FOLLOWERS.md
-
-        # Mettre à jour le README principal
+        # Mettre à jour le README
         sed -i '/<!-- FOLLOWERS_START -->/,/<!-- FOLLOWERS_END -->/c\<!-- FOLLOWERS_START -->\n'"$output"'\n<!-- FOLLOWERS_END -->' README.md
 
     - name: Commit and push changes
@@ -48,7 +45,7 @@ jobs:
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
         git add README.md
-        git commit -m 'Update followers list'
+        git commit -m 'Update followers list' || echo "No changes to commit"
         git push
       env:
         GITHUB_TOKEN: ${{ secrets.README_TOKEN }}
