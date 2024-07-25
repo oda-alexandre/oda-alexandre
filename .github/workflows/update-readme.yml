@@ -38,7 +38,7 @@ jobs:
         done
         
         # Mettre à jour le README
-        sed -i '/<!-- FOLLOWERS_START -->/,/<!-- FOLLOWERS_END -->/c\<!-- FOLLOWERS_START -->\n'"$output"'\n<!-- FOLLOWERS_END -->' README.md
+        sed -i '/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/c\<!-- TOP-FOLLOWERS:START -->\n'"$output"'\n<!-- TOP-FOLLOWERS:END -->' README.md
 
     - name: Commit and push changes
       run: |
