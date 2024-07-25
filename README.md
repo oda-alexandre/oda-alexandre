@@ -1,34 +1,4 @@
 ## Followers
 
 <!-- TOP-FOLLOWERS:START -->
-# Mes Followers
-
-- [Neustradamus](https://github.com/Neustradamus)
-- [aya](https://github.com/aya)
-- [AmauryVanEspen](https://github.com/AmauryVanEspen)
-- [benifei](https://github.com/benifei)
-- [mfsiat](https://github.com/mfsiat)
-- [baptiste-dauphin](https://github.com/baptiste-dauphin)
-- [RBLEC](https://github.com/RBLEC)
-- [D0ntTrustMe](https://github.com/D0ntTrustMe)
-- [fantomas2b](https://github.com/fantomas2b)
-- [5l1v3r1](https://github.com/5l1v3r1)
-- [CisKolea](https://github.com/CisKolea)
-- [MorpheusH3x](https://github.com/MorpheusH3x)
-- [Skoatpalace](https://github.com/Skoatpalace)
-- [szpx](https://github.com/szpx)
-- [sdsnake](https://github.com/sdsnake)
-- [xma899](https://github.com/xma899)
-- [Stirling82](https://github.com/Stirling82)
-- [A73X](https://github.com/A73X)
-- [saladtosser](https://github.com/saladtosser)
-- [mmdhgh](https://github.com/mmdhgh)
-- [Ugoboby](https://github.com/Ugoboby)
-- [elyasrz](https://github.com/elyasrz)
-- [AegisTaaltec](https://github.com/AegisTaaltec)
-- [MrNullus](https://github.com/MrNullus)
-- [Chronoz55](https://github.com/Chronoz55)
-- [fair3n](https://github.com/fair3n)
-- [xiaomui21](https://github.com/xiaomui21)
-
 <!-- TOP-FOLLOWERS:END -->
