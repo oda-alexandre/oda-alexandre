@@ -12,54 +12,54 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v2
-      with:
-        node-version: '14'
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
 
-    - name: Install Dependencies
-      run: npm install @octokit/rest
+      - name: Install Dependencies
+        run: npm install @octokit/rest
 
-    - name: Update README
-      env:
-        README_TOKEN: ${{ secrets.README_TOKEN }}
-      run: |
-        node -e "
-          const { Octokit } = require('@octokit/rest');
-          const fs = require('fs');
+      - name: Update README
+        env:
+          README_TOKEN: ${{ secrets.README_TOKEN }}
+        run: |
+          node -e "
+            import { Octokit } from '@octokit/rest';
+            import { readFileSync, writeFileSync } from 'fs';
 
-          const octokit = new Octokit({ auth: process.env.README_TOKEN });
+            const octokit = new Octokit({ auth: process.env.README_TOKEN });
 
-          async function getFollowers() {
-            const followers = await octokit.paginate(octokit.users.listFollowersForUser, {
-              username: 'VotreNomUtilisateur'
-            });
-            return followers;
-          }
+            async function getFollowers() {
+              const followers = await octokit.paginate(octokit.users.listFollowersForUser, {
+                username: 'VotreNomUtilisateur'
+              });
+              return followers;
+            }
 
-          async function updateReadme() {
-            const followers = await getFollowers();
-            const followerList = followers.map(follower => \`- [\${follower.login}](\${follower.html_url})\`).join('\n');
+            async function updateReadme() {
+              const followers = await getFollowers();
+              const followerList = followers.map(follower => \`- [\${follower.login}](\${follower.html_url})\`).join('\n');
 
-            const readmeContent = fs.readFileSync('README.md', 'utf8');
-            const updatedContent = readmeContent.replace(
-              /<!-- FOLLOWERS-LIST:START -->[\\s\\S]*<!-- FOLLOWERS-LIST:END -->/,
-              \`<!-- FOLLOWERS-LIST:START -->\n\${followerList}\n<!-- FOLLOWERS-LIST:END -->\`
-            );
+              const readmeContent = readFileSync('README.md', 'utf8');
+              const updatedContent = readmeContent.replace(
+                /<!-- FOLLOWERS-LIST:START -->[\\s\\S]*<!-- FOLLOWERS-LIST:END -->/,
+                \`<!-- FOLLOWERS-LIST:START -->\n\${followerList}\n<!-- FOLLOWERS-LIST:END -->\`
+              );
 
-            fs.writeFileSync('README.md', updatedContent);
-          }
+              writeFileSync('README.md', updatedContent);
+            }
 
-          updateReadme();
-        "
-      
-    - name: Commit and Push changes
-      run: |
-        git config --global user.name 'github-actions[bot]'
-        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-        git add README.md
-        git commit -m 'Update README with latest followers'
-        git push
+            updateReadme();
+          "
+
+      - name: Commit and Push changes
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add README.md
+          git commit -m 'Update README with latest followers'
+          git push
