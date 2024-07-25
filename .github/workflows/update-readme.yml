@@ -42,10 +42,10 @@ jobs:
               echo ${row} | base64 --decode | jq -r ${1}
             }
             LOGIN=$(_jq '.login')
-            FOLLOWER_CARDS="$FOLLOWER_CARDS[![$LOGIN](https://img.shields.io/github/followers/$LOGIN?label=$LOGIN&style=social)](https://github.com/$LOGIN) "
+            FOLLOWER_CARDS="$FOLLOWER_CARDS[![$LOGIN](https://img.shields.io/github/followers/$LOGIN?label=$LOGIN&style=for-the-badge&logo=github&logoColor=white&labelColor=0A66C2&color=0A66C2)](https://github.com/$LOGIN) "
           done
           sed -i "/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/{//!d;}" README.md
-          echo "<div style=\"display: flex; flex-wrap: wrap; justify-content: center;\">" >> README.md
+          echo "<div style=\"display: flex; flex-wrap: wrap; gap: 5px;\">" >> README.md
           echo "$FOLLOWER_CARDS" | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
           echo "</div>" >> README.md
 
