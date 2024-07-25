@@ -43,20 +43,36 @@ jobs:
       #     max_post_count: '4'
       #     feed_list: 'https://www.oda-alexandre.com/blog/feed'
 
-      - name: Fetch and Update Followers
+      - name: Update README
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          FOLLOWERS=$(curl -s https://api.github.com/users/oda-alexandre/followers)
-          FOLLOWER_CARDS=""
-          for row in $(echo "${FOLLOWERS}" | jq -r '.[] | @base64'); do
-            _jq() {
-              echo ${row} | base64 --decode | jq -r ${1}
-            }
-            LOGIN=$(_jq '.login')
-            AVATAR_URL=$(_jq '.avatar_url')
-            FOLLOWER_CARDS="$FOLLOWER_CARDS<div style=\"display: inline-block; text-align: center; margin: 10px;\"><a href=\"https://github.com/$LOGIN\" target=\"_blank\"><img src=\"$AVATAR_URL\" alt=\"$LOGIN\" style=\"width: 100px; height: 100px; border-radius: 50%; object-fit: cover;\"><br>@$LOGIN</a></div>"
-          done
-          sed -i "/<!-- TOP-FOLLOWERS:START -->/,/<!-- TOP-FOLLOWERS:END -->/{//!d;}" README.md
-          echo "$FOLLOWER_CARDS" | sed -i "/<!-- TOP-FOLLOWERS:START -->/r /dev/stdin" README.md
+          const { Octokit } = require("@octokit/rest");
+          const fs = require('fs');
+          
+          const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+          
+          async function getFollowers() {
+            const followers = await octokit.paginate(octokit.users.listFollowersForUser, {
+              username: 'VotreNomUtilisateur'
+            });
+            return followers;
+          }
+          
+          async function updateReadme() {
+            const followers = await getFollowers();
+            const followerList = followers.map(follower => `- [${follower.login}](${follower.html_url})`).join('\n');
+            
+            const readmeContent = fs.readFileSync('README.md', 'utf8');
+            const updatedContent = readmeContent.replace(
+              /<!-- FOLLOWERS-LIST:START -->[\s\S]*<!-- FOLLOWERS-LIST:END -->/,
+              `<!-- FOLLOWERS-LIST:START -->\n${followerList}\n<!-- FOLLOWERS-LIST:END -->`
+            );
+            
+            fs.writeFileSync('README.md', updatedContent);
+          }
+          
+          updateReadme();
 
       - name: Commit and Push Changes
         run: |
