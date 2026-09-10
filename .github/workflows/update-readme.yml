@@ -1,0 +1,183 @@
+# SPDX-FileCopyrightText: 2024-2026 ODA Alexandre
+# SPDX-License-Identifier: EUPL-1.2+
+
+name: Publish Profile README
+
+on:
+  push:
+    branches:
+      - dev
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+# Profile Health uses Issues for de-duplicated incident tracking; keep Issues
+# enabled in repository settings and retain this least-privilege write scope.
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: publish-profile-readme
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout source branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Prepare published branch
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          PUBLISH_DIR="$RUNNER_TEMP/profile-publish"
+          echo "dir=$PUBLISH_DIR" >> "$GITHUB_OUTPUT"
+
+          git fetch origin \
+            '+refs/heads/main:refs/remotes/origin/main' \
+            '+refs/heads/dev:refs/remotes/origin/dev'
+          rm -rf "$PUBLISH_DIR"
+          git worktree add --detach "$PUBLISH_DIR" origin/main
+          git -C "$PUBLISH_DIR" config user.name "github-actions[bot]"
+          git -C "$PUBLISH_DIR" config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Preserve dev as the editable source and main as the filtered published
+          # snapshot, while still making every source commit reachable from the
+          # default branch. The ours strategy records origin/dev as a second parent
+          # without copying source-only files into main. The rsync below then builds
+          # the exact public tree for the resulting publication commit. Existing dev
+          # commits are never rebased, squashed, or recreated, so their commit IDs,
+          # authorship, and signatures remain intact.
+          if ! git -C "$PUBLISH_DIR" merge-base --is-ancestor origin/dev HEAD; then
+            git -C "$PUBLISH_DIR" merge --no-commit --no-ff -s ours origin/dev
+          fi
+
+          # The workflow itself is synchronized to main so scheduled runs always
+          # use the latest source definition. Template/config stay source-only.
+          rm -f \
+            "$PUBLISH_DIR/README.template" \
+            "$PUBLISH_DIR/README.template.md" \
+            "$PUBLISH_DIR/profile.config.toml"
+
+          rsync -a --delete \
+            --exclude '.git' \
+            --exclude 'README.md' \
+            --exclude 'README.template' \
+            --exclude 'README.template.md' \
+            --exclude 'profile.config.toml' \
+            --exclude 'assets/generated/' \
+            ./ "$PUBLISH_DIR"/
+
+      - name: Generate published README and assets
+        id: profile
+        if: steps.publish.outcome == 'success'
+        working-directory: ${{ steps.publish.outputs.dir }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # External-platform secrets are injected only at generation time and
+          # are never copied into the published branch or README.
+          HTB_TOKEN: ${{ secrets.HTB_TOKEN }}
+          HACKERONE_API_TOKEN: ${{ secrets.HACKERONE_API_TOKEN }}
+          README_TEMPLATE: ${{ github.workspace }}/README.template
+          PROFILE_CONFIG: ${{ github.workspace }}/profile.config.toml
+          PROFILE_HEALTH_FILE: ${{ runner.temp }}/profile-health.json
+        run: python3 scripts/update_readme.py
+
+      - name: Verify published snapshot
+        id: verify
+        if: steps.profile.outcome == 'success'
+        working-directory: ${{ steps.publish.outputs.dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f README.md
+          test ! -e README.template
+          test ! -e README.template.md
+          test ! -e profile.config.toml
+          test -f assets/separator.gif
+          test -f assets/badges/contact/website.svg
+          test -f assets/badges/contact/linkedin.svg
+          test -f assets/badges/contact/github.svg
+          test -f assets/badges/contact/gitlab.svg
+          test -f assets/badges/contact/gpg-public-key.svg
+          # The README footer links to these repository-relative files. Keep the
+          # publication invariant explicit so broken licensing links fail early.
+          test -f LICENSE
+          test -f NOTICE
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          readme = Path("README.md").read_text(encoding="utf-8")
+          references = set(
+              re.findall(r'\./assets/generated/([^?\"\')]+\.svg)', readme)
+          )
+          missing = sorted(
+              name for name in references
+              if not (Path("assets/generated") / name).is_file()
+          )
+          if missing:
+              raise SystemExit(
+                  "README references missing generated assets: " + ", ".join(missing)
+              )
+          if "temporarily unavailable" in readme.lower():
+              raise SystemExit("Public README contains an internal availability placeholder")
+          PY
+
+      - name: Commit published profile
+        id: commit
+        if: steps.verify.outcome == 'success'
+        working-directory: ${{ steps.publish.outputs.dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          # Generated SVGs are intentionally ignored on dev/source but are part
+          # of the published main snapshot, so they must remain force-added.
+          git add -f README.md assets/generated/
+
+          MERGE_HEAD_PATH="$(git rev-parse --git-path MERGE_HEAD)"
+          if git diff --cached --quiet && [ ! -f "$MERGE_HEAD_PATH" ]; then
+            echo "Published profile is already up to date."
+          else
+            # When origin/dev contains new source commits, MERGE_HEAD makes this a
+            # two-parent publication commit: previous main + current dev. This keeps
+            # dev history reachable from the default branch without publishing the
+            # source-only dev tree. If dev is already an ancestor, this is a normal
+            # single-parent snapshot refresh.
+            git commit -m "chore(readme): publish profile"
+            git merge-base --is-ancestor origin/dev HEAD
+            git push origin HEAD:main
+          fi
+
+      - name: Remove publish worktree
+        if: always()
+        shell: bash
+        env:
+          PUBLISH_DIR: ${{ steps.publish.outputs.dir }}
+        run: |
+          if [ -n "${PUBLISH_DIR:-}" ] && [ -d "$PUBLISH_DIR" ]; then
+            git worktree remove "$PUBLISH_DIR" --force || true
+          fi
+
+      - name: Report profile health
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROFILE_HEALTH_FILE: ${{ runner.temp }}/profile-health.json
+          PROFILE_PREPARE_OUTCOME: ${{ steps.publish.outcome }}
+          PROFILE_GENERATE_OUTCOME: ${{ steps.profile.outcome }}
+          PROFILE_VERIFY_OUTCOME: ${{ steps.verify.outcome }}
+          PROFILE_COMMIT_OUTCOME: ${{ steps.commit.outcome }}
+        run: python3 scripts/report_profile_health.py

@@ -1,0 +1,92 @@
+# ==============================================================================
+# ODA-ALEXANDRE - .gitignore
+# ==============================================================================
+#
+# Politique : DENY BY DEFAULT
+#
+# Tous les fichiers sont ignorés par défaut. Seuls les fichiers explicitement
+# présents dans l'ALLOWLIST peuvent être suivis par Git.
+#
+# PRINCIPES :
+#
+# - `*` ignore tout le contenu du dépôt par défaut.
+#
+# - `!*/` réautorise uniquement la traversée des répertoires afin que Git puisse
+#   atteindre les fichiers explicitement autorisés plus bas.
+#   Cela ne réautorise pas automatiquement leur contenu.
+#
+# - Toute nouvelle ressource destinée à être versionnée doit être ajoutée
+#   explicitement à l'ALLOWLIST.
+#
+# - Préférer les règles les plus précises possibles :
+#
+#     fichier précis > chemin précis > extension globale
+#
+#   Exemple recommandé :
+#     !/scripts/update_readme.py
+#
+#   À éviter lorsque ce n'est pas nécessaire :
+#     !*.py
+#
+# - Les fichiers générés, temporaires ou non prévus restent automatiquement
+#   ignorés tant qu'ils ne sont pas ajoutés à l'ALLOWLIST.
+#
+# - L'ordre des règles est important : lorsqu'un chemin correspond à plusieurs
+#   règles du même niveau, la dernière règle applicable prend effet.
+#
+# DIAGNOSTIC :
+#
+#   Afficher également les fichiers ignorés :
+#     git status --ignored
+#
+#   Identifier la règle responsable de l'exclusion d'un fichier :
+#     git check-ignore -v -- path/to/file
+#
+# FICHIERS DÉJÀ SUIVIS :
+#
+# `.gitignore` n'affecte pas les fichiers déjà présents dans l'index Git.
+# Pour arrêter de suivre un fichier sans le supprimer localement :
+#
+#     git rm --cached -- path/to/file
+#
+# ==============================================================================
+
+
+# ==============================================================================
+# 1. DENY BY DEFAULT
+# ==============================================================================
+
+*
+!*/
+
+
+# ==============================================================================
+# 2. ALLOWLIST
+# ==============================================================================
+#
+# Ajouter ici uniquement les fichiers qui doivent réellement faire partie
+# du dépôt.
+#
+# Utiliser de préférence des chemins explicites et ancrés à la racine.
+# ==============================================================================
+
+!/.gitignore
+
+!/.github/workflows/update-readme.yml
+
+!/LICENSE
+!/NOTICE
+!/profile.config.toml
+!/README.template
+
+!/assets/separator.gif
+!/assets/badges/contact/website.svg
+!/assets/badges/contact/linkedin.svg
+!/assets/badges/contact/github.svg
+!/assets/badges/contact/gitlab.svg
+!/assets/badges/contact/gpg-public-key.svg
+
+!/docs/PROFILE_README_ARCHITECTURE.md
+
+!/scripts/report_profile_health.py
+!/scripts/update_readme.py

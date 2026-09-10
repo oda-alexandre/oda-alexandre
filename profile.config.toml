@@ -1,0 +1,52 @@
+# Maintenance/design rules: see docs/PROFILE_README_ARCHITECTURE.md before adding fields or platforms.
+
+# FEATURED PROJECTS is fully automatic: repositories pinned on the GitHub profile
+# are fetched in profile order, so no project list is maintained in this file.
+
+# Optional blog feed. Leave empty until the feed is intentionally published.
+# Empty means disabled: no network request and no Profile Health incident.
+# Once configured, temporary failures preserve the last valid blog content.
+[blog]
+feed_url = ""
+
+# Optional professional-profile sources.
+# Empty URLs keep their cards and sections completely hidden from README.md.
+# Add only real, public, verifiable profiles to avoid redundant platform badges.
+
+[security_practice]
+# Offensive Security · Pentest
+# Dynamic rank/progress is fetched from HTB Labs with the repository Actions
+# secret HTB_TOKEN. The public profile URL remains the click destination.
+hack_the_box = "https://profile.hackthebox.com/profile/01a0193e-ee03-716d-a699-81f553d6548a"
+# Blue Team · DFIR
+# Public rank + average skill progress are refreshed automatically from
+# CyberDefenders public endpoints; no token/secret is required.
+cyberdefenders = "https://cyberdefenders.org/p/maitreoda"
+
+[security_research]
+# Real-world security research. The profile URL is public, but the card remains
+# hidden until the Hacker API proves meaningful activity (Signal/Impact or a
+# public disclosure). Authentication uses the Actions secret HACKERONE_API_TOKEN.
+hackerone = "https://hackerone.com/maitreoda"
+
+# Optional external public disclosures can be added later only as complete
+# evidence cards. Identifiers belong inside the disclosure metadata, never as
+# standalone identifier cards.
+# [[security_research.disclosures]]
+# source = "Example Program"
+# title = "Authorization bypass in API endpoint"
+# severity = "High"
+# cwe = "CWE-862"
+# cve = "CVE-YYYY-NNNN"
+# url = "https://example.com/public-disclosure"
+
+# Only obtained, publicly verifiable credentials belong here.
+# `issued_at` is kept as source metadata but is displayed only when no expiration
+# exists. When `expires_at` exists, README shows only "Valid until YYYY".
+#
+# [[certifications]]
+# name = "Certified Kubernetes Security Specialist"
+# issuer = "CNCF / Linux Foundation"
+# issued_at = "2028-03-01"
+# expires_at = "2030-03-01"
+# verification_url = "https://example.com/credential"

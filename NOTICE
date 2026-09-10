@@ -1,0 +1,59 @@
+Copyright © 2024-2026 ODA Alexandre
+
+LICENSING NOTICE
+================
+
+This repository intentionally separates the reusable Profile README engine and
+design system from account-specific personal profile content.
+
+1. EUPL-licensed material
+-------------------------
+Unless a file states otherwise, the following reusable project material is
+licensed under the European Union Public Licence, version 1.2 or any later
+version (EUPL-1.2-or-later):
+
+- scripts/**
+- .github/**
+- docs/PROFILE_README_ARCHITECTURE.md
+- reusable layout, SVG generation, card, typography, section, fallback and
+  Profile Health logic implemented by those files
+- reusable visual assets created specifically for this project and not marked
+  as third-party material
+
+The canonical licence text is in LICENSE. Source files may use the SPDX
+expression `EUPL-1.2+`, which means EUPL 1.2 or any later version.
+
+2. Personal Profile Content — not licensed under the EUPL
+----------------------------------------------------------
+The EUPL grant above does not apply to account-specific Personal Profile Content.
+To the extent such material is protected by applicable law, it remains
+Copyright © 2024-2026 ODA Alexandre. All rights reserved unless explicitly
+stated otherwise.
+
+Personal Profile Content includes, in particular:
+
+- personal biography, identity, account handles and contact information
+- user-specific values stored in profile.config.toml
+- project selections and account-specific repository metadata presented as
+  portfolio content
+- personal statistics, followers, blog entries, certifications, credentials,
+  security-practice profiles, security-research findings and similar data
+- generated README.md content and generated visual assets insofar as they embed
+  or present account-specific Personal Profile Content
+
+README.template is a container for generated Personal Profile Content. Its
+reusable rendering/generation logic lives in the EUPL-licensed source files;
+personal content inserted into or represented by the template is not licensed
+under the EUPL by this repository.
+
+3. Third-party material
+-----------------------
+Third-party names, trademarks, service marks, logos, badges, linked content and
+other third-party material remain subject to the rights and licences of their
+respective owners. This repository does not relicense them.
+
+4. Maintenance rule
+-------------------
+Future changes must preserve this boundary. Do not silently place personal
+profile content or third-party material under the EUPL merely because it is
+rendered by EUPL-licensed code.
