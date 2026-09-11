@@ -3,6 +3,8 @@
 
 name: Publish Profile README
 
+# dev is the editable source branch. Signed v* release tags identify source
+# commits from the dev lineage and trigger publication/mirroring.
 on:
   push:
     branches:
@@ -172,6 +174,8 @@ jobs:
             git worktree remove "$PUBLISH_DIR" --force || true
           fi
 
+      # GitHub is the source of truth. GitLab mirrors main, dev, and signed v*
+      # release tags; independent GitLab release refs are intentionally avoided.
       - name: Mirror GitHub repository to GitLab
         id: mirror
         if: steps.commit.outcome == 'success'

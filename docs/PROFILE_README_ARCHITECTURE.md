@@ -330,10 +330,23 @@ Before implementing a new feature:
 10. Add new generated assets to the normal active-asset lifecycle; never commit
     generated SVGs to the source ZIP/dev branch.
 
-## 8. Git branch and publication lineage
+## 8. Git branches, release tags and publication lineage
 
 `dev` is the editable source branch and `main` is the default, published snapshot.
-The publication workflow must preserve both properties at the same time:
+Release tags version source revisions, not generated publication snapshots.
+
+Release tags follow the source lineage:
+
+- annotated, signed release tags matching `v*` identify source revisions and
+  therefore target commits from the `dev` lineage;
+- release tags never target generated publication commits on `main`;
+- `main` remains a continuously refreshed published snapshot and may advance
+  without a new project release;
+- GitHub is the source of truth for `dev`, `main`, and release tags;
+- GitLab is a downstream mirror of `dev`, `main`, and `v*` tags and must not
+  maintain independent release refs.
+
+The publication workflow must preserve the branch model at the same time:
 
 - source-only files such as `README.template` and `profile.config.toml` stay on `dev`;
 - `main` contains only the public snapshot and generated assets;
