@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="150" viewBox="0 0 720 150" role="img" aria-label="GitHub professional statistics: merged pull requests, code reviews, repositories contributed to, and stars earned">
+  <defs><filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3.6"/></filter></defs>
+  <style>text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+.card-title { fill: #747b83; font-size: 15px; font-weight: 600; }
+.card-description { fill: #747b83; font-size: 13px; font-weight: 400; }
+.metric-value { fill: #747b83; font-size: 30px; font-weight: 700; }
+.metric-label { fill: #747b83; font-size: 13px; font-weight: 400; }
+.status-value { fill: #747b83; font-size: 17px; font-weight: 600; }
+.data-label { fill: #747b83; font-size: 15px; font-weight: 600; }
+.data-meta { fill: #747b83; font-size: 13px; font-weight: 400; }
+.meta { fill: #747b83; font-size: 11px; font-weight: 400; }
+.action-label { fill: #116466; font-size: 10px; font-weight: 700; letter-spacing: 0.65px; }
+.connector-label { fill: #116466; font-size: 10.0px; font-weight: 700; letter-spacing: 0.50px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }</style>
+  <rect x="5" y="5" width="710" height="140" rx="7" fill="none" stroke="#116466" stroke-width="4" stroke-opacity="0.20" filter="url(#softGlow)"/><rect x="0" y="0" width="720" height="150" rx="12" fill="#737a82" fill-opacity="0.00" stroke="#116466" stroke-width="1.6" stroke-opacity="0.90"/>
+  <text class="metric-value" x="90" y="58" text-anchor="middle">0</text><text class="metric-label" x="90" y="91" text-anchor="middle">Merged PRs</text><text class="meta" x="90" y="111" text-anchor="middle">· 365d</text><line x1="180" y1="30" x2="180" y2="120" stroke="#116466" stroke-opacity="0.50"/><text class="metric-value" x="270" y="58" text-anchor="middle">0</text><text class="metric-label" x="270" y="91" text-anchor="middle">Code reviews</text><text class="meta" x="270" y="111" text-anchor="middle">· 365d</text><line x1="360" y1="30" x2="360" y2="120" stroke="#116466" stroke-opacity="0.50"/><text class="metric-value" x="450" y="58" text-anchor="middle">1</text><text class="metric-label" x="450" y="91" text-anchor="middle">Repos contributed</text><text class="meta" x="450" y="111" text-anchor="middle">· 365d</text><line x1="540" y1="30" x2="540" y2="120" stroke="#116466" stroke-opacity="0.50"/><text class="metric-value" x="630" y="58" text-anchor="middle">1</text><text class="metric-label" x="630" y="91" text-anchor="middle">Stars earned</text>
+</svg>

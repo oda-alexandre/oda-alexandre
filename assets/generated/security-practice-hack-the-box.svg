@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="156" viewBox="0 0 220 156" role="img" aria-label="HACK THE BOX: Offensive Security · Pentest; Noob; 0% to Script Kiddie">
+  <defs><filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3.6"/></filter></defs>
+  <style>text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+.card-title { fill: #747b83; font-size: 15px; font-weight: 600; }
+.card-description { fill: #747b83; font-size: 13px; font-weight: 400; }
+.metric-value { fill: #747b83; font-size: 30px; font-weight: 700; }
+.metric-label { fill: #747b83; font-size: 13px; font-weight: 400; }
+.status-value { fill: #747b83; font-size: 17px; font-weight: 600; }
+.data-label { fill: #747b83; font-size: 15px; font-weight: 600; }
+.data-meta { fill: #747b83; font-size: 13px; font-weight: 400; }
+.meta { fill: #747b83; font-size: 11px; font-weight: 400; }
+.action-label { fill: #116466; font-size: 10px; font-weight: 700; letter-spacing: 0.65px; }
+.connector-label { fill: #116466; font-size: 10.0px; font-weight: 700; letter-spacing: 0.50px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }</style>
+  <rect x="5" y="5" width="210" height="146" rx="7" fill="none" stroke="#116466" stroke-width="4" stroke-opacity="0.20" filter="url(#softGlow)"/><rect x="0" y="0" width="220" height="156" rx="12" fill="#737a82" fill-opacity="0.00" stroke="#116466" stroke-width="1.6" stroke-opacity="0.90"/>
+  <text class="card-title" x="110.0" y="28" text-anchor="middle">HACK THE BOX</text><text class="card-description" x="110.0" y="48" text-anchor="middle">Offensive Security · Pentest</text><line x1="39.6" y1="61" x2="180.4" y2="61" stroke="#116466" stroke-opacity="0.50"/><text class="status-value" x="110.0" y="88" text-anchor="middle">Noob</text><rect x="30.0" y="108" width="160.0" height="7" rx="3.5" fill="#747b83" fill-opacity="0.72"/><rect x="30.0" y="108" width="0.0" height="7" rx="3.5" fill="#116466" fill-opacity="0.92"/><text class="meta" x="110.0" y="137" text-anchor="middle">0% to Script Kiddie</text>
+</svg>
