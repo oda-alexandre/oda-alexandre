@@ -15,10 +15,11 @@ on:
     - cron: '0 0 * * *'
   workflow_dispatch:
 
-# Profile Health uses Issues for de-duplicated incident tracking; keep Issues
-# enabled in repository settings and retain this least-privilege write scope.
+# The workflow only needs read access to repository contents; publication to
+# main uses the dedicated SSH deploy key. Profile Health requires Issues write
+# access for de-duplicated incident tracking.
 permissions:
-  contents: write
+  contents: read
   issues: write
 
 concurrency:
@@ -36,6 +37,10 @@ jobs:
         with:
           ref: dev
           fetch-depth: 0
+          # Repository contents are public and only require read access here.
+          # Publication uses a dedicated SSH deploy key instead of checkout's
+          # GITHUB_TOKEN credentials.
+          persist-credentials: false
 
       - name: Prepare published branch
         id: publish
@@ -143,8 +148,21 @@ jobs:
         if: steps.verify.outcome == 'success'
         working-directory: ${{ steps.publish.outputs.dir }}
         shell: bash
+        env:
+          # The private publication key is stored as a repository secret. The
+          # expected GitHub host fingerprint is non-secret configuration stored
+          # as a repository variable so it can be rotated without editing YAML.
+          GH_PUBLISH_SSH_KEY: ${{ secrets.GH_PUBLISH_SSH_KEY }}
+          GH_SSH_HOST_FINGERPRINT: ${{ vars.GH_SSH_HOST_FINGERPRINT }}
+          GH_PUBLISH_URL: git@github.com:${{ github.repository }}.git
         run: |
           set -euo pipefail
+
+          if [ -z "${GH_PUBLISH_SSH_KEY:-}" ]; then
+            echo "::error::GH_PUBLISH_SSH_KEY is required for publication."
+            exit 1
+          fi
+
           git add -A
           # Generated SVGs are intentionally ignored on dev/source but are part
           # of the published main snapshot, so they must remain force-added.
@@ -154,6 +172,11 @@ jobs:
           if git diff --cached --quiet && [ ! -f "$MERGE_HEAD_PATH" ]; then
             echo "Published profile is already up to date."
           else
+            if [ -z "${GH_SSH_HOST_FINGERPRINT:-}" ]; then
+              echo "::error::GH_SSH_HOST_FINGERPRINT is required for publication."
+              exit 1
+            fi
+
             # When origin/dev contains new source commits, MERGE_HEAD makes this a
             # two-parent publication commit: previous main + current dev. This keeps
             # dev history reachable from the default branch without publishing the
@@ -161,7 +184,56 @@ jobs:
             # single-parent snapshot refresh.
             git commit -m "chore(readme): publish profile"
             git merge-base --is-ancestor origin/dev HEAD
-            git push origin HEAD:main
+
+            SSH_KEY_PATH="$RUNNER_TEMP/github-publish-ed25519"
+            KNOWN_HOSTS_PATH="$RUNNER_TEMP/github-known-hosts"
+
+            cleanup_publish_credentials() {
+              rm -f "$SSH_KEY_PATH" "$KNOWN_HOSTS_PATH"
+            }
+            trap cleanup_publish_credentials EXIT
+
+            # The dedicated GitHub publication deploy key exists only for the
+            # lifetime of this ephemeral runner.
+            printf '%s\n' "$GH_PUBLISH_SSH_KEY" \
+              | tr -d '\r' > "$SSH_KEY_PATH"
+            chmod 600 "$SSH_KEY_PATH"
+
+            # Fail before attempting the push if the stored secret is not a valid
+            # OpenSSH private key.
+            ssh-keygen -y -f "$SSH_KEY_PATH" >/dev/null
+
+            # Retrieve GitHub.com's Ed25519 host key, then trust it only if its
+            # SHA-256 fingerprint matches the pinned repository variable.
+            ssh-keyscan \
+              -T 10 \
+              -t ed25519 \
+              github.com \
+              > "$KNOWN_HOSTS_PATH" \
+              2>/dev/null
+
+            test -s "$KNOWN_HOSTS_PATH"
+
+            ACTUAL_FINGERPRINTS="$(
+              ssh-keygen -lf "$KNOWN_HOSTS_PATH" -E sha256 \
+                | awk '{print $2}' \
+                | sort -u
+            )"
+
+            if [ "$ACTUAL_FINGERPRINTS" != "$GH_SSH_HOST_FINGERPRINT" ]; then
+              echo "::error::GitHub SSH host key fingerprint validation failed."
+              echo "::error::Expected: $GH_SSH_HOST_FINGERPRINT"
+              echo "::error::Received: $ACTUAL_FINGERPRINTS"
+              exit 1
+            fi
+
+            chmod 600 "$KNOWN_HOSTS_PATH"
+
+            export GIT_SSH_COMMAND="ssh -i $SSH_KEY_PATH -o IdentitiesOnly=yes -o IdentityAgent=none -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$KNOWN_HOSTS_PATH"
+
+            # main is published exclusively through the dedicated write-enabled
+            # GitHub deploy key; GITHUB_TOKEN retains contents:read only.
+            git push "$GH_PUBLISH_URL" HEAD:main
           fi
 
       - name: Remove publish worktree
@@ -181,13 +253,21 @@ jobs:
         if: steps.commit.outcome == 'success'
         shell: bash
         env:
+          # The mirror key is secret. The expected GitLab host fingerprint is
+          # non-secret repository configuration kept outside the workflow file.
           GITLAB_MIRROR_SSH_KEY: ${{ secrets.GITLAB_MIRROR_SSH_KEY }}
+          GITLAB_SSH_HOST_FINGERPRINT: ${{ vars.GITLAB_SSH_HOST_FINGERPRINT }}
           GITLAB_MIRROR_URL: git@gitlab.com:oda-alexandre/oda-alexandre.git
         run: |
           set -euo pipefail
 
           if [ -z "${GITLAB_MIRROR_SSH_KEY:-}" ]; then
             echo "::error::GITLAB_MIRROR_SSH_KEY is required for GitLab mirroring."
+            exit 1
+          fi
+
+          if [ -z "${GITLAB_SSH_HOST_FINGERPRINT:-}" ]; then
+            echo "::error::GITLAB_SSH_HOST_FINGERPRINT is required for GitLab mirroring."
             exit 1
           fi
 
@@ -205,11 +285,30 @@ jobs:
           chmod 600 "$SSH_KEY_PATH"
           ssh-keygen -y -f "$SSH_KEY_PATH" >/dev/null
 
-          # Pin GitLab.com's published Ed25519 host key instead of trusting a
-          # runtime ssh-keyscan result.
-          cat > "$KNOWN_HOSTS_PATH" <<'EOF'
-          gitlab.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAfuCHKVTjquxvt6CM6tdG4SLp1Btn/nOeHHE5UOzRdf
-          EOF
+          # Retrieve GitLab.com's Ed25519 host key, then trust it only if its
+          # SHA-256 fingerprint matches the pinned repository variable.
+          ssh-keyscan \
+            -T 10 \
+            -t ed25519 \
+            gitlab.com \
+            > "$KNOWN_HOSTS_PATH" \
+            2>/dev/null
+
+          test -s "$KNOWN_HOSTS_PATH"
+
+          ACTUAL_FINGERPRINTS="$(
+            ssh-keygen -lf "$KNOWN_HOSTS_PATH" -E sha256 \
+              | awk '{print $2}' \
+              | sort -u
+          )"
+
+          if [ "$ACTUAL_FINGERPRINTS" != "$GITLAB_SSH_HOST_FINGERPRINT" ]; then
+            echo "::error::GitLab SSH host key fingerprint validation failed."
+            echo "::error::Expected: $GITLAB_SSH_HOST_FINGERPRINT"
+            echo "::error::Received: $ACTUAL_FINGERPRINTS"
+            exit 1
+          fi
+
           chmod 600 "$KNOWN_HOSTS_PATH"
 
           export GIT_SSH_COMMAND="ssh -i $SSH_KEY_PATH -o IdentitiesOnly=yes -o IdentityAgent=none -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$KNOWN_HOSTS_PATH"
