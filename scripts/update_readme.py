@@ -43,7 +43,7 @@ README = Path("README.md")
 CONFIG = Path(os.environ.get("PROFILE_CONFIG", "profile.config.toml"))
 HEALTH_FILE = Path(os.environ.get("PROFILE_HEALTH_FILE", ".profile-health.json"))
 ASSET_DIR = Path("assets/generated")
-PROFILE_COLOR = "116466"  # Visual theme, intentionally static.
+PROFILE_COLOR = "116466"  # Brand accent color, intentionally static.
 SVG_WIDTH = 720
 STANDARD_CARD_HEIGHT = 230
 ACTIVITY_CARD_HEIGHT = 190
@@ -96,10 +96,9 @@ PUBLISH_LABEL_LINE_GAP = 12
 
 
 @dataclass(frozen=True)
-class SvgTheme:
-    """Colors and intensities for one generated-SVG appearance."""
+class SvgStyle:
+    """Shared colors and visual intensities for generated SVGs."""
 
-    name: str
     bg_color: str
     text_color: str
     muted_color: str
@@ -264,33 +263,20 @@ class HealthReport:
         )
 
 
-DARK_THEME = SvgTheme(
-    name="dark",
-    bg_color="0d1117",
-    text_color="f0f6fc",
-    muted_color="8b949e",
-    track_color="21262d",
-    surface_opacity=0.76,
-    border_opacity=0.95,
-    glow_opacity=0.46,
-    secondary_opacity=0.62,
-    divider_opacity=0.42,
-    muted_opacity=0.96,
+# Shared SVG visual tokens. The transparent surface and balanced text colors keep
+# generated assets readable on supported repository surfaces.
+SVG_STYLE = SvgStyle(
+    bg_color="737a82",
+    text_color="747b83",
+    muted_color="747b83",
+    track_color="747b83",
+    surface_opacity=0.0,
+    border_opacity=0.90,
+    glow_opacity=0.20,
+    secondary_opacity=0.58,
+    divider_opacity=0.50,
+    muted_opacity=0.94,
 )
-LIGHT_THEME = SvgTheme(
-    name="light",
-    bg_color="ffffff",
-    text_color="24292f",
-    muted_color="57606a",
-    track_color="d0d7de",
-    surface_opacity=0.82,
-    border_opacity=0.78,
-    glow_opacity=0.18,
-    secondary_opacity=0.55,
-    divider_opacity=0.32,
-    muted_opacity=0.92,
-)
-SVG_THEMES = (DARK_THEME, LIGHT_THEME)
 MAX_AVATAR_BYTES = 8 * 1024 * 1024
 
 SECURITY_PRACTICE_CATALOG = {
@@ -832,24 +818,23 @@ def _cached_cyberdefenders_value(kind: str) -> str | float | None:
     refresh independently: if one CyberDefenders endpoint fails, the healthy
     field can still update while the failed field retains its last valid value.
     """
-    dark_path, light_path = themed_asset_paths("security-practice-cyberdefenders")
-    for path in (dark_path, light_path):
-        if not path.exists():
-            continue
-        try:
-            document = html.unescape(path.read_text(encoding="utf-8"))
-        except OSError:
-            continue
-        if kind == "progress":
-            match = re.search(r">(\d{1,3}(?:\.\d)?)% avg\. skill progress</text>", document)
-            if match:
-                return float(match.group(1))
-        elif kind == "rank":
-            match = re.search(
-                r'<text class="status-value"[^>]*>([^<]+)</text>', document
-            )
-            if match:
-                return match.group(1).strip()
+    path = generated_asset_path("security-practice-cyberdefenders")
+    if not path.exists():
+        return None
+    try:
+        document = html.unescape(path.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+    if kind == "progress":
+        match = re.search(r">(\d{1,3}(?:\.\d)?)% avg\. skill progress</text>", document)
+        if match:
+            return float(match.group(1))
+    elif kind == "rank":
+        match = re.search(
+            r'<text class="status-value"[^>]*>([^<]+)</text>', document
+        )
+        if match:
+            return match.group(1).strip()
     return None
 
 
@@ -954,25 +939,24 @@ def download_public_image(url: str) -> tuple[bytes, str]:
     return data, content_type
 
 
-def write_avatar_svgs(avatar_url: str) -> tuple[Path, Path]:
-    """Embed the current GitHub avatar in local light/dark SVG canvases."""
+def write_avatar_svg(avatar_url: str) -> Path:
+    """Embed the current GitHub avatar in a transparent SVG."""
     ASSET_DIR.mkdir(parents=True, exist_ok=True)
     avatar_bytes, mime_type = download_public_image(avatar_url)
     encoded = base64.b64encode(avatar_bytes).decode("ascii")
 
-    def build_svg(canvas_color: str) -> str:
+    def build_svg() -> str:
         return (
             '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" '
             'viewBox="0 0 200 200" role="img" aria-label="GitHub avatar">\n'
-            f'  <rect width="200" height="200" fill="#{canvas_color}"/>\n'
             f'  <image x="0" y="0" width="200" height="200" '
             f'preserveAspectRatio="xMidYMid meet" href="data:{mime_type};base64,{encoded}"/>\n'
             '</svg>\n'
         )
 
-    return write_themed_svgs(
+    return write_svg(
         "avatar",
-        lambda theme: build_svg(theme.bg_color),
+        lambda _theme: build_svg(),
     )
 
 
@@ -983,34 +967,27 @@ def build_avatar_block(
     health: HealthReport,
     active_assets: set[str],
 ) -> str:
-    """Generate the avatar, preserving the last valid local pair on failure."""
+    """Generate the avatar, preserving the last valid local SVG on failure."""
     avatar_alt = html.escape(f"{display_name} GitHub avatar", quote=True)
     avatar_title = html.escape(str(display_name), quote=True)
-    dark_path, light_path = themed_asset_paths("avatar")
+    path = generated_asset_path("avatar")
 
     try:
-        dark_path, light_path = write_avatar_svgs(avatar_url)
+        path = write_avatar_svg(avatar_url)
     except Exception as exc:
         health.add("GitHub avatar", exc)
-        if not (dark_path.exists() and light_path.exists()):
+        if not path.exists():
             escaped_url = html.escape(str(avatar_url), quote=True)
             return (
                 f'<img src="{escaped_url}" width="200" height="200" '
                 f'alt="{avatar_alt}" title="{avatar_title}">'
             )
 
-    active_assets.update((dark_path.name, light_path.name))
-    dark_url = versioned_asset_url(dark_path)
-    light_url = versioned_asset_url(light_path)
+    active_assets.add(path.name)
+    asset_url = versioned_asset_url(path)
     return (
-        "<picture>\n"
-        '  <source media="(prefers-color-scheme: dark)" '
-        f'srcset="{dark_url}">\n'
-        '  <source media="(prefers-color-scheme: light)" '
-        f'srcset="{light_url}">\n'
-        f'  <img src="{dark_url}" width="200" height="200" '
-        f'alt="{avatar_alt}" title="{avatar_title}">\n'
-        "</picture>"
+        f'<img src="{asset_url}" width="200" height="200" '
+        f'alt="{avatar_alt}" title="{avatar_title}">'
     )
 
 def normalize_url(value: str) -> str:
@@ -1401,7 +1378,7 @@ def svg_escape(value: object) -> str:
     return html.escape(str(value), quote=True)
 
 
-def svg_typography_css(theme: SvgTheme) -> str:
+def svg_typography_css(style: SvgStyle) -> str:
     """Return semantic typography roles shared by every generated SVG card.
 
     Choose a role by meaning, never by whichever size happens to look right:
@@ -1418,14 +1395,14 @@ def svg_typography_css(theme: SvgTheme) -> str:
     return (
         'text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", '
         'Roboto, Helvetica, Arial, sans-serif; }\n'
-        f'.card-title {{ fill: #{theme.text_color}; font-size: 15px; font-weight: 600; }}\n'
-        f'.card-description {{ fill: #{theme.muted_color}; font-size: 13px; font-weight: 400; }}\n'
-        f'.metric-value {{ fill: #{theme.text_color}; font-size: 30px; font-weight: 700; }}\n'
-        f'.metric-label {{ fill: #{theme.muted_color}; font-size: 13px; font-weight: 400; }}\n'
-        f'.status-value {{ fill: #{theme.text_color}; font-size: 17px; font-weight: 600; }}\n'
-        f'.data-label {{ fill: #{theme.text_color}; font-size: 15px; font-weight: 600; }}\n'
-        f'.data-meta {{ fill: #{theme.muted_color}; font-size: 13px; font-weight: 400; }}\n'
-        f'.meta {{ fill: #{theme.muted_color}; font-size: 11px; font-weight: 400; }}\n'
+        f'.card-title {{ fill: #{style.text_color}; font-size: 15px; font-weight: 600; }}\n'
+        f'.card-description {{ fill: #{style.muted_color}; font-size: 13px; font-weight: 400; }}\n'
+        f'.metric-value {{ fill: #{style.text_color}; font-size: 30px; font-weight: 700; }}\n'
+        f'.metric-label {{ fill: #{style.muted_color}; font-size: 13px; font-weight: 400; }}\n'
+        f'.status-value {{ fill: #{style.text_color}; font-size: 17px; font-weight: 600; }}\n'
+        f'.data-label {{ fill: #{style.text_color}; font-size: 15px; font-weight: 600; }}\n'
+        f'.data-meta {{ fill: #{style.muted_color}; font-size: 13px; font-weight: 400; }}\n'
+        f'.meta {{ fill: #{style.muted_color}; font-size: 11px; font-weight: 400; }}\n'
         f'.action-label {{ fill: #{PROFILE_COLOR}; font-size: 10px; font-weight: 700; '
         'letter-spacing: 0.65px; }\n'
         f'.connector-label {{ fill: #{PROFILE_COLOR}; font-size: {CONNECTOR_LABEL_FONT_SIZE:.1f}px; '
@@ -1448,9 +1425,9 @@ def svg_card_frame(
     width: float,
     height: float,
     *,
-    theme: SvgTheme,
+    style: SvgStyle,
 ) -> str:
-    """Render the one canonical card frame used across profile SVGs.
+    """Render the shared card frame used across profile SVGs.
 
     Do not create card-specific border/glow variants to compensate for layout
     issues. Fix the card geometry instead so every visible and future card keeps
@@ -1464,11 +1441,11 @@ def svg_card_frame(
     return (
         f'<rect x="{glow_x}" y="{glow_y}" width="{glow_width}" height="{glow_height}" '
         f'rx="{glow_radius}" fill="none" stroke="#{PROFILE_COLOR}" stroke-width="4" '
-        f'stroke-opacity="{theme.glow_opacity:.2f}" filter="url(#softGlow)"/>'
+        f'stroke-opacity="{style.glow_opacity:.2f}" filter="url(#softGlow)"/>'
         f'<rect x="{x}" y="{y}" width="{width}" height="{height}" '
-        f'rx="{CARD_RADIUS}" fill="#{theme.bg_color}" fill-opacity="{theme.surface_opacity:.2f}" '
+        f'rx="{CARD_RADIUS}" fill="#{style.bg_color}" fill-opacity="{style.surface_opacity:.2f}" '
         f'stroke="#{PROFILE_COLOR}" stroke-width="1.6" '
-        f'stroke-opacity="{theme.border_opacity:.2f}"/>'
+        f'stroke-opacity="{style.border_opacity:.2f}"/>'
     )
 
 
@@ -1494,93 +1471,87 @@ def svg_card_document(
     width: int,
     height: int,
     aria_label: str,
-    theme: SvgTheme,
+    style: SvgStyle,
     content: str,
     include_frame: bool = True,
     defs_extra: str = "",
 ) -> str:
     """Wrap generated content in the shared SVG document/card scaffold."""
-    frame = svg_card_frame(0, 0, width, height, theme=theme) if include_frame else ""
+    frame = svg_card_frame(0, 0, width, height, style=style) if include_frame else ""
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-label="{svg_escape(aria_label)}">
   <defs>{svg_soft_glow_filter()}{defs_extra}</defs>
-  <style>{svg_typography_css(theme)}</style>
+  <style>{svg_typography_css(style)}</style>
   {frame}
   {content}
 </svg>\n'''
 
 
-def themed_asset_paths(stem: str) -> tuple[Path, Path]:
-    """Return the canonical dark/light paths for one generated asset stem."""
-    dark_path = ASSET_DIR / f"{stem}-{DARK_THEME.name}.svg"
-    light_path = ASSET_DIR / f"{stem}-{LIGHT_THEME.name}.svg"
-    return dark_path, light_path
+def generated_asset_path(stem: str) -> Path:
+    """Return the path for a generated SVG asset."""
+    return ASSET_DIR / f"{stem}.svg"
 
 
-def write_themed_svgs(
+def write_svg(
     stem: str,
-    builder: Callable[[SvgTheme], str],
-) -> tuple[Path, Path]:
-    """Generate a dark/light pair without partially replacing it on build failure."""
+    builder: Callable[[SvgStyle], str],
+) -> Path:
+    """Generate an SVG atomically without replacing the last-good file on failure."""
     ASSET_DIR.mkdir(parents=True, exist_ok=True)
-    paths = themed_asset_paths(stem)
-    # Build both documents before touching the last-good files.
-    documents = [builder(theme) for theme in SVG_THEMES]
-    temp_paths = [path.with_suffix(path.suffix + ".tmp") for path in paths]
+    path = generated_asset_path(stem)
+    # Build the full document before touching the previous public asset.
+    document = builder(SVG_STYLE)
+    temp_path = path.with_suffix(path.suffix + ".tmp")
     try:
-        for temp_path, document in zip(temp_paths, documents):
-            temp_path.write_text(document, encoding="utf-8")
-        for temp_path, path in zip(temp_paths, paths):
-            temp_path.replace(path)
+        temp_path.write_text(document, encoding="utf-8")
+        temp_path.replace(path)
     finally:
-        for temp_path in temp_paths:
-            temp_path.unlink(missing_ok=True)
-    return paths
+        temp_path.unlink(missing_ok=True)
+    return path
 
 
-def write_themed_svgs_with_fallback(
+def write_svg_with_fallback(
     stem: str,
-    builder: Callable[[SvgTheme], str],
+    builder: Callable[[SvgStyle], str],
     *,
     source_available: bool,
     health: HealthReport,
     component: str,
     active_assets: set[str],
-) -> tuple[Path, Path] | None:
-    """Generate fresh assets, preserve last-good assets, or omit the card.
+) -> Path | None:
+    """Generate a fresh SVG, preserve last-good content, or omit the card.
 
-    This is the public-facing resilience contract: a transient source/build
-    failure must never replace valid content with an error placeholder. The
-    failure is reported separately through ``HealthReport``.
+    A transient source/build failure must never replace valid public content
+    with an error placeholder.
     """
-    paths = themed_asset_paths(stem)
+    path = generated_asset_path(stem)
     if not source_available:
-        if all(path.exists() for path in paths):
-            active_assets.update(path.name for path in paths)
-            return paths
-        return None
+        if not path.exists():
+            return None
+        active_assets.add(path.name)
+        return path
 
     try:
-        paths = write_themed_svgs(stem, builder)
+        path = write_svg(stem, builder)
     except Exception as exc:
         health.add(component, exc)
-        if not all(path.exists() for path in paths):
+        if not path.exists():
             return None
 
-    active_assets.update(path.name for path in paths)
-    return paths
+    active_assets.add(path.name)
+    return path
 
 
-def safe_themed_card(
+def safe_svg_card(
     stem: str,
-    builder: Callable[[SvgTheme], str],
+    builder: Callable[[SvgStyle], str],
     *,
     health: HealthReport,
     component: str,
     active_assets: set[str],
     source_available: bool = True,
-) -> tuple[Path, Path] | None:
-    """Shared card-generation path for both static and dynamic components."""
-    return write_themed_svgs_with_fallback(
+) -> Path | None:
+    """Shared SVG generation path for static and dynamic components."""
+    return write_svg_with_fallback(
         stem,
         builder,
         source_available=source_available,
@@ -1589,7 +1560,7 @@ def safe_themed_card(
         active_assets=active_assets,
     )
 
-def build_languages_svg(languages: dict[str, int], *, theme: SvgTheme) -> str:
+def build_languages_svg(languages: dict[str, int], *, style: SvgStyle) -> str:
     """Render chart-like language data; data alignment intentionally beats centering.
 
     Narrative cards are centered, but charts keep labels/values aligned to the
@@ -1600,8 +1571,8 @@ def build_languages_svg(languages: dict[str, int], *, theme: SvgTheme) -> str:
     total = sum(value for _, value in ranked)
     width, height = SVG_WIDTH, STANDARD_CARD_HEIGHT
 
-    track_fill_opacity = 0.52 if theme.name == "dark" else 0.40
-    highlight_color = theme.text_color
+    track_fill_opacity = 0.42
+    highlight_color = style.text_color
     bar_defs = (
         f'<linearGradient id="languageBarFill" x1="0%" y1="0%" x2="100%" y2="0%">'
         f'<stop offset="0%" stop-color="#{PROFILE_COLOR}" stop-opacity="0.98"/>'
@@ -1612,7 +1583,7 @@ def build_languages_svg(languages: dict[str, int], *, theme: SvgTheme) -> str:
     def language_bar(x: float, y: float, total_width: float, fill_width: float, opacity: float) -> str:
         return (
             f'<rect x="{x}" y="{y}" width="{total_width:.1f}" height="7" rx="3.5" '
-            f'fill="#{theme.track_color}" fill-opacity="{track_fill_opacity:.2f}"/>'
+            f'fill="#{style.track_color}" fill-opacity="{track_fill_opacity:.2f}"/>'
             f'<rect x="{x}" y="{y}" width="{fill_width:.1f}" height="7" rx="3.5" '
             f'fill="url(#languageBarFill)" opacity="{opacity:.2f}"/>'
             f'<rect x="{x + 1:.1f}" y="{y + 1:.1f}" width="{max(fill_width - 2, 0.0):.1f}" height="1.6" rx="0.8" '
@@ -1663,7 +1634,7 @@ def build_languages_svg(languages: dict[str, int], *, theme: SvgTheme) -> str:
         width=width,
         height=height,
         aria_label="Most used languages",
-        theme=theme,
+        style=style,
         content="".join(rows),
         defs_extra=bar_defs,
     )
@@ -1672,7 +1643,7 @@ def build_languages_svg(languages: dict[str, int], *, theme: SvgTheme) -> str:
 def build_stats_svg(
     snapshot: GitHubStatsSnapshot,
     *,
-    theme: SvgTheme,
+    style: SvgStyle,
 ) -> str:
     """Render compact professional GitHub collaboration and impact signals.
 
@@ -1704,7 +1675,7 @@ def build_stats_svg(
             blocks.append(
                 f'<line x1="{x:.0f}" y1="{separator_top}" '
                 f'x2="{x:.0f}" y2="{separator_bottom}" stroke="#{PROFILE_COLOR}" '
-                f'stroke-opacity="{theme.divider_opacity:.2f}"/>'
+                f'stroke-opacity="{style.divider_opacity:.2f}"/>'
             )
         blocks.append(
             f'<text class="metric-value" x="{center_x:.0f}" y="58" '
@@ -1727,7 +1698,7 @@ def build_stats_svg(
             "GitHub professional statistics: merged pull requests, code reviews, "
             "repositories contributed to, and stars earned"
         ),
-        theme=theme,
+        style=style,
         content="".join(blocks),
     )
 
@@ -1768,7 +1739,7 @@ def featured_project_stem(repository: JsonObject) -> str:
 def build_featured_project_card_svg(
     repository: JsonObject,
     *,
-    theme: SvgTheme,
+    style: SvgStyle,
 ) -> str:
     """Render one pinned repository using the shared semantic card hierarchy."""
     width = FEATURED_PROJECT_CARD_WIDTH
@@ -1811,7 +1782,7 @@ def build_featured_project_card_svg(
             0,
             56,
             width,
-            opacity=theme.divider_opacity,
+            opacity=style.divider_opacity,
             inset_ratio=0.09,
         )
     )
@@ -1832,7 +1803,7 @@ def build_featured_project_card_svg(
         width=width,
         height=height,
         aria_label=f"Featured project {name}",
-        theme=theme,
+        style=style,
         content="".join(content),
     )
 
@@ -1876,19 +1847,19 @@ def build_featured_projects_content(
         if not name or not url:
             continue
         stem = featured_project_stem(repository)
-        paths = safe_themed_card(
+        path = safe_svg_card(
             stem,
-            lambda theme, repository=repository: build_featured_project_card_svg(
-                repository, theme=theme
+            lambda style, repository=repository: build_featured_project_card_svg(
+                repository, style=style
             ),
             health=health,
             component=f"Featured Project card: {name}",
             active_assets=active_assets,
         )
-        if paths:
+        if path:
             cards.append(
-                build_linked_picture(
-                    *paths,
+                build_linked_image(
+                    path,
                     url=url,
                     alt=f"Featured project: {name}",
                     width=FEATURED_PROJECT_CARD_WIDTH,
@@ -1909,13 +1880,13 @@ def blend_hex(start_hex: str, end_hex: str, ratio: float) -> str:
     return "".join(f"{channel:02x}" for channel in blended)
 
 
-def activity_level_colors(theme: SvgTheme) -> dict[str, str]:
+def activity_level_colors(style: SvgStyle) -> dict[str, str]:
     """Map GitHub contribution quartiles onto the profile's green palette."""
     return {
-        "NONE": theme.track_color,
-        "FIRST_QUARTILE": blend_hex(theme.bg_color, PROFILE_COLOR, 0.28),
-        "SECOND_QUARTILE": blend_hex(theme.bg_color, PROFILE_COLOR, 0.48),
-        "THIRD_QUARTILE": blend_hex(theme.bg_color, PROFILE_COLOR, 0.72),
+        "NONE": style.track_color,
+        "FIRST_QUARTILE": blend_hex(style.bg_color, PROFILE_COLOR, 0.28),
+        "SECOND_QUARTILE": blend_hex(style.bg_color, PROFILE_COLOR, 0.48),
+        "THIRD_QUARTILE": blend_hex(style.bg_color, PROFILE_COLOR, 0.72),
         "FOURTH_QUARTILE": PROFILE_COLOR,
     }
 
@@ -2028,7 +1999,7 @@ def _activity_legend(colors: dict[str, str], *, width: int, height: int) -> str:
 def build_activity_svg(
     snapshot: ContributionSnapshot,
     *,
-    theme: SvgTheme,
+    style: SvgStyle,
 ) -> str:
     """Render a GitHub-style heatmap with the shared card-title hierarchy."""
     width, height = SVG_WIDTH, ACTIVITY_CARD_HEIGHT
@@ -2036,7 +2007,7 @@ def build_activity_svg(
     cell_size, cell_gap = 8, 3
     cell_step = cell_size + cell_gap
     grid_x = 58
-    colors = activity_level_colors(theme)
+    colors = activity_level_colors(style)
     plural = "" if snapshot.total == 1 else "s"
     blocks = [
         f'<text class="card-title" x="{width / 2:.1f}" y="{title_y}" '
@@ -2066,31 +2037,31 @@ def build_activity_svg(
         width=width,
         height=height,
         aria_label="GitHub activity over 365 days",
-        theme=theme,
+        style=style,
         content="".join(blocks),
     )
 
 
 
-def write_activity_svgs(
+def write_activity_svg(
     snapshot: ContributionSnapshot | None,
     *,
     health: HealthReport,
     active_assets: set[str],
-) -> tuple[Path, Path] | None:
-    """Generate activity assets or preserve the last valid pair."""
+) -> Path | None:
+    """Generate the activity SVG or preserve the last valid asset."""
     if snapshot is None or not snapshot.weeks:
-        return write_themed_svgs_with_fallback(
+        return write_svg_with_fallback(
             "github-activity",
-            lambda theme: "",
+            lambda style: "",
             source_available=False,
             health=health,
             component="GitHub activity card",
             active_assets=active_assets,
         )
-    return write_themed_svgs_with_fallback(
+    return write_svg_with_fallback(
         "github-activity",
-        lambda theme: build_activity_svg(snapshot, theme=theme),
+        lambda style: build_activity_svg(snapshot, style=style),
         source_available=True,
         health=health,
         component="GitHub activity card",
@@ -2177,7 +2148,7 @@ def build_compact_link_card_svg(
     title: str,
     subtitle: str,
     *,
-    theme: SvgTheme,
+    style: SvgStyle,
     width: int = 220,
     height: int = 104,
 ) -> str:
@@ -2195,7 +2166,7 @@ def build_compact_link_card_svg(
             0,
             divider_y,
             width,
-            opacity=theme.divider_opacity,
+            opacity=style.divider_opacity,
             inset_ratio=0.18,
         )
         + f'<text class="card-description" x="{width / 2:.1f}" y="79" '
@@ -2205,7 +2176,7 @@ def build_compact_link_card_svg(
         width=width,
         height=height,
         aria_label=f"{title}: {subtitle}",
-        theme=theme,
+        style=style,
         content=content,
     )
 
@@ -2217,7 +2188,7 @@ def build_practice_progress_card_svg(
     progress: float,
     progress_label: str,
     *,
-    theme: SvgTheme,
+    style: SvgStyle,
     width: int = 220,
     height: int = 156,
 ) -> str:
@@ -2238,12 +2209,12 @@ def build_practice_progress_card_svg(
         f'<text class="card-description" x="{center_x:.1f}" y="48" text-anchor="middle">'
         f'{svg_escape(subtitle)}</text>'
         + svg_horizontal_divider(
-            0, 61, width, opacity=theme.divider_opacity, inset_ratio=0.18
+            0, 61, width, opacity=style.divider_opacity, inset_ratio=0.18
         )
         + f'<text class="status-value" x="{center_x:.1f}" y="88" text-anchor="middle">'
         f'{svg_escape(status)}</text>'
         f'<rect x="{track_x:.1f}" y="108" width="{track_width:.1f}" height="7" rx="3.5" '
-        f'fill="#{theme.track_color}" fill-opacity="0.72"/>'
+        f'fill="#{style.track_color}" fill-opacity="0.72"/>'
         f'<rect x="{track_x:.1f}" y="108" width="{fill_width:.1f}" height="7" rx="3.5" '
         f'fill="#{PROFILE_COLOR}" fill-opacity="0.92"/>'
         f'<text class="meta" x="{center_x:.1f}" y="137" text-anchor="middle">'
@@ -2253,7 +2224,7 @@ def build_practice_progress_card_svg(
         width=width,
         height=height,
         aria_label=f"{title}: {subtitle}; {status}; {progress_label}",
-        theme=theme,
+        style=style,
         content=content,
     )
 
@@ -2267,7 +2238,7 @@ def _format_hackerone_metric(value: float) -> str:
 def build_hackerone_research_card_svg(
     snapshot: HackerOneSnapshot,
     *,
-    theme: SvgTheme,
+    style: SvgStyle,
     width: int = 340,
     height: int = 156,
 ) -> str:
@@ -2287,7 +2258,7 @@ def build_hackerone_research_card_svg(
         return build_compact_link_card_svg(
             "HACKERONE",
             "Security Research · Disclosures",
-            theme=theme,
+            style=style,
             width=width,
             height=104,
         )
@@ -2299,7 +2270,7 @@ def build_hackerone_research_card_svg(
         f'<text class="card-description" x="{center_x:.1f}" y="48" text-anchor="middle">'
         'Security Research · Disclosures</text>'
         + svg_horizontal_divider(
-            0, 61, width, opacity=theme.divider_opacity, inset_ratio=0.18
+            0, 61, width, opacity=style.divider_opacity, inset_ratio=0.18
         )
     )
 
@@ -2319,7 +2290,7 @@ def build_hackerone_research_card_svg(
             separator_x = cell_width * index
             blocks.append(
                 f'<line x1="{separator_x:.1f}" y1="76" x2="{separator_x:.1f}" y2="126" '
-                f'stroke="#{PROFILE_COLOR}" stroke-opacity="{theme.divider_opacity:.2f}"/>'
+                f'stroke="#{PROFILE_COLOR}" stroke-opacity="{style.divider_opacity:.2f}"/>'
             )
         blocks.append(
             f'<text class="metric-value" x="{x:.1f}" y="104" text-anchor="middle">'
@@ -2334,7 +2305,7 @@ def build_hackerone_research_card_svg(
         width=width,
         height=height,
         aria_label="HackerOne security research profile with earned researcher metrics",
-        theme=theme,
+        style=style,
         content="".join(blocks),
     )
 
@@ -2353,7 +2324,7 @@ def build_security_research_evidence_card_svg(
     title: str,
     metadata: tuple[str, ...],
     *,
-    theme: SvgTheme,
+    style: SvgStyle,
     width: int = 220,
     height: int = 156,
 ) -> str:
@@ -2377,7 +2348,7 @@ def build_security_research_evidence_card_svg(
         f'<text class="card-title" x="{center_x:.1f}" y="28" '
         f'text-anchor="middle"{source_attrs}>{svg_escape(source_label)}</text>',
         svg_horizontal_divider(
-            0, 43, width, opacity=theme.divider_opacity, inset_ratio=0.14
+            0, 43, width, opacity=style.divider_opacity, inset_ratio=0.14
         ),
     ]
 
@@ -2407,7 +2378,7 @@ def build_security_research_evidence_card_svg(
         width=width,
         height=height,
         aria_label=f"Security research evidence from {source_label}: {title}",
-        theme=theme,
+        style=style,
         content="".join(content),
     )
 
@@ -2415,7 +2386,7 @@ def build_security_research_evidence_card_svg(
 def build_hackerone_disclosure_card_svg(
     disclosure: HackerOneDisclosure,
     *,
-    theme: SvgTheme,
+    style: SvgStyle,
 ) -> str:
     """Render one public HackerOne disclosure through the shared evidence card."""
     classification = " · ".join(
@@ -2426,7 +2397,7 @@ def build_hackerone_disclosure_card_svg(
         disclosure.program,
         disclosure.title,
         metadata,
-        theme=theme,
+        style=style,
     )
 
 
@@ -2435,7 +2406,7 @@ def build_certification_card_svg(
     issuer: str,
     date_label: str,
     *,
-    theme: SvgTheme,
+    style: SvgStyle,
 ) -> str:
     """Render one verified credential with the shared centered card hierarchy.
 
@@ -2453,7 +2424,7 @@ def build_certification_card_svg(
             0,
             62,
             width,
-            opacity=theme.divider_opacity,
+            opacity=style.divider_opacity,
             inset_ratio=0.09,
         )
         + f'<text class="meta" x="{center_x:.1f}" y="87" '
@@ -2463,31 +2434,26 @@ def build_certification_card_svg(
         width=width,
         height=height,
         aria_label=f"{name} certification by {issuer}",
-        theme=theme,
+        style=style,
         content=content,
     )
 
 
-def build_linked_picture(
-    dark_path: Path,
-    light_path: Path,
+def build_linked_image(
+    path: Path,
     *,
     url: str,
     alt: str,
     width: int | None = None,
 ) -> str:
-    """Build one individually clickable dark/light SVG card."""
-    dark_url = versioned_asset_url(dark_path)
-    light_url = versioned_asset_url(light_path)
+    """Build one individually clickable generated SVG card."""
+    asset_url = versioned_asset_url(path)
     escaped_url = html.escape(url, quote=True)
     escaped_alt = html.escape(alt, quote=True)
     width_attr = f' width="{width}"' if width else ""
     return (
-        f'<a href="{escaped_url}"><picture>'
-        f'<source media="(prefers-color-scheme: dark)" srcset="{dark_url}">'
-        f'<source media="(prefers-color-scheme: light)" srcset="{light_url}">'
-        f'<img src="{dark_url}" alt="{escaped_alt}"{width_attr}>'
-        '</picture></a>'
+        f'<a href="{escaped_url}"><img src="{asset_url}" '
+        f'alt="{escaped_alt}"{width_attr}></a>'
     )
 
 
@@ -2541,9 +2507,9 @@ def _practice_platform_card(
         return ""
     progress_label = _practice_progress_label(key, snapshot) if snapshot else ""
     stem = f"security-practice-{key.replace('_', '-')}"
-    paths = safe_themed_card(
+    path = safe_svg_card(
         stem,
-        lambda theme,
+        lambda style,
         title=title,
         subtitle=subtitle,
         snapshot=snapshot,
@@ -2554,7 +2520,7 @@ def _practice_platform_card(
                 snapshot.rank,
                 snapshot.progress,
                 progress_label,
-                theme=theme,
+                style=style,
             )
             if snapshot is not None
             else ""
@@ -2568,9 +2534,9 @@ def _practice_platform_card(
         active_assets=active_assets,
         source_available=snapshot is not None,
     )
-    if not paths:
+    if not path:
         return ""
-    return build_linked_picture(*paths, url=url, alt=f"{title} profile", width=220)
+    return build_linked_image(path, url=url, alt=f"{title} profile", width=220)
 
 
 def _configured_profile_url(
@@ -2629,9 +2595,8 @@ def build_security_practice_content(
 
 
 
-def _remove_themed_assets(stem: str) -> None:
-    for path in themed_asset_paths(stem):
-        path.unlink(missing_ok=True)
+def _remove_generated_assets(stem: str) -> None:
+    generated_asset_path(stem).unlink(missing_ok=True)
 
 
 def _hackerone_profile_card(
@@ -2645,24 +2610,24 @@ def _hackerone_profile_card(
     visible = snapshot if snapshot and snapshot.meaningful else None
     stem = "security-research-hackerone"
     if snapshot is not None and visible is None:
-        _remove_themed_assets(stem)
+        _remove_generated_assets(stem)
         return "", None
     if visible is None:
         return "", None
-    paths = safe_themed_card(
+    path = safe_svg_card(
         stem,
-        lambda theme, snapshot=visible: build_hackerone_research_card_svg(
-            snapshot, theme=theme
+        lambda style, snapshot=visible: build_hackerone_research_card_svg(
+            snapshot, style=style
         ),
         health=health,
         component="Security Research card: HackerOne",
         active_assets=active_assets,
     )
-    if not paths:
+    if not path:
         return "", visible
     return (
-        build_linked_picture(
-            *paths,
+        build_linked_image(
+            path,
             url=url,
             alt=f"{title} security research profile",
             width=340,
@@ -2677,19 +2642,19 @@ def _hackerone_disclosure_card(
     health: HealthReport,
     active_assets: set[str],
 ) -> str:
-    paths = safe_themed_card(
+    path = safe_svg_card(
         hackerone_disclosure_stem(disclosure),
-        lambda theme, disclosure=disclosure: build_hackerone_disclosure_card_svg(
-            disclosure, theme=theme
+        lambda style, disclosure=disclosure: build_hackerone_disclosure_card_svg(
+            disclosure, style=style
         ),
         health=health,
         component=f"Security Research disclosure: {disclosure.report_id}",
         active_assets=active_assets,
     )
-    if not paths:
+    if not path:
         return ""
-    return build_linked_picture(
-        *paths,
+    return build_linked_image(
+        path,
         url=disclosure.url,
         alt=f"HackerOne disclosure: {disclosure.title}",
         width=220,
@@ -2752,19 +2717,19 @@ def _manual_disclosure_card(
     digest = hashlib.sha256(
         f"{source}|{title}|{disclosure_url}".encode("utf-8")
     ).hexdigest()[:10]
-    paths = safe_themed_card(
+    path = safe_svg_card(
         f"security-research-disclosure-{digest}",
-        lambda theme, source=source, title=title, metadata=metadata: build_security_research_evidence_card_svg(
-            source, title, metadata, theme=theme
+        lambda style, source=source, title=title, metadata=metadata: build_security_research_evidence_card_svg(
+            source, title, metadata, style=style
         ),
         health=health,
         component=f"Security Research disclosure: {title}",
         active_assets=active_assets,
     )
-    if not paths:
+    if not path:
         return ""
-    return build_linked_picture(
-        *paths,
+    return build_linked_image(
+        path,
         url=disclosure_url,
         alt=f"Security research disclosure: {title}",
         width=220,
@@ -2933,19 +2898,19 @@ def _certification_card(
         return ""
     stem_key = SLUG_SEPARATOR_RE.sub("-", name.casefold()).strip("-") or str(index + 1)
     date_label = credential_date_label(credential, health)
-    paths = safe_themed_card(
+    path = safe_svg_card(
         f"certification-{stem_key[:48]}",
-        lambda theme, name=name, issuer=issuer, date_label=date_label: build_certification_card_svg(
-            name, issuer, date_label, theme=theme
+        lambda style, name=name, issuer=issuer, date_label=date_label: build_certification_card_svg(
+            name, issuer, date_label, style=style
         ),
         health=health,
         component=f"Certification card: {name}",
         active_assets=active_assets,
     )
-    if not paths:
+    if not path:
         return ""
-    return build_linked_picture(
-        *paths,
+    return build_linked_image(
+        path,
         url=verification_url,
         alt=f"Verify {name}",
         width=340,
@@ -3115,9 +3080,10 @@ def preserve_cached_generated_assets(
     health: HealthReport,
     component: str,
 ) -> str:
-    """Keep a cached section only when all generated assets it references still exist."""
+    """Keep a cached section only when all generated assets it references exist."""
     if not content:
         return ""
+
     names = set(re.findall(r"\./assets/generated/([^?\"')]+\.svg)", content))
     missing = sorted(name for name in names if not (ASSET_DIR / name).is_file())
     if missing:
@@ -3197,11 +3163,11 @@ def assemble_sections(sections: list[Section], *, footer: str = "") -> str:
         blocks.append(footer.strip())
     return "\n\n".join(blocks)
 
-def build_development_workflow_svg(*, theme: SvgTheme) -> str:
+def build_development_workflow_svg(*, style: SvgStyle) -> str:
     """Render the profile's development and publication workflow."""
     width = SVG_WIDTH
-    divider_opacity = theme.divider_opacity
-    secondary_opacity = theme.secondary_opacity
+    divider_opacity = style.divider_opacity
+    secondary_opacity = style.secondary_opacity
 
     # Workflow cards intentionally use the same internal rhythm and height.
     card_padding_y = 18
@@ -3222,7 +3188,7 @@ def build_development_workflow_svg(*, theme: SvgTheme) -> str:
         title_y = y + title_baseline
         footer_y = y + footer_offset
         return (
-            svg_card_frame(x, y, node_width, main_card_height, theme=theme)
+            svg_card_frame(x, y, node_width, main_card_height, style=style)
             + f'<text class="card-title" x="{x + node_width / 2:.1f}" y="{title_y:.1f}" '
             'text-anchor="middle">'
             f'{svg_escape(title)}</text>'
@@ -3248,7 +3214,7 @@ def build_development_workflow_svg(*, theme: SvgTheme) -> str:
         divider_y = y + divider_offset
         footer_y = y + footer_offset
         return (
-            svg_card_frame(x, y, node_width, secondary_card_height, theme=theme)
+            svg_card_frame(x, y, node_width, secondary_card_height, style=style)
             + f'<text class="card-title" x="{x + node_width / 2:.1f}" y="{title_y:.1f}" '
             'text-anchor="middle">'
             f'{svg_escape(title)}</text>'
@@ -3451,31 +3417,25 @@ def build_development_workflow_svg(*, theme: SvgTheme) -> str:
         width=width,
         height=height,
         aria_label="Development workflow",
-        theme=theme,
+        style=style,
         content=connectors + local + gitlab + pages + github + docker + labels,
         include_frame=False,
         defs_extra=arrow_defs,
     )
 
 
-def build_theme_picture_block(
-    dark_path: Path,
-    light_path: Path,
+def build_picture_block(
+    path: Path,
     alt: str,
     *,
     width: int | None = None,
 ) -> str:
-    dark_url = versioned_asset_url(dark_path)
-    light_url = versioned_asset_url(light_path)
+    asset_url = versioned_asset_url(path)
     escaped_alt = html.escape(alt, quote=True)
     width_attr = f' width="{width}"' if width else ""
     return (
         '<p align="center">\n'
-        '  <picture>\n'
-        f'    <source media="(prefers-color-scheme: dark)" srcset="{dark_url}">\n'
-        f'    <source media="(prefers-color-scheme: light)" srcset="{light_url}">\n'
-        f'    <img src="{dark_url}" alt="{escaped_alt}"{width_attr}>\n'
-        '  </picture>\n'
+        f'  <img src="{asset_url}" alt="{escaped_alt}"{width_attr}>\n'
         '</p>'
     )
 
@@ -3595,20 +3555,20 @@ def _language_snapshot(
     return aggregate_languages(repos, health)
 
 
-def _language_card_paths(
+def _language_card_path(
     languages: dict[str, int],
     complete: bool,
     repos_available: bool,
     *,
     health: HealthReport,
     active_assets: set[str],
-) -> tuple[Path, Path] | None:
+) -> Path | None:
     source_available = repos_available and complete
     if source_available and not languages:
         return None
-    return safe_themed_card(
+    return safe_svg_card(
         "languages",
-        lambda theme: build_languages_svg(languages, theme=theme),
+        lambda style: build_languages_svg(languages, style=style),
         health=health,
         component="Most Used Languages card",
         active_assets=active_assets,
@@ -3616,22 +3576,22 @@ def _language_card_paths(
     )
 
 
-def _stats_card_paths(
+def _stats_card_path(
     repos: list[JsonObject] | None,
     contribution_snapshot: ContributionSnapshot | None,
     merged_pull_requests: int | None,
     *,
     health: HealthReport,
     active_assets: set[str],
-) -> tuple[Path, Path] | None:
+) -> Path | None:
     if (
         repos is None
         or contribution_snapshot is None
         or merged_pull_requests is None
     ):
-        return safe_themed_card(
+        return safe_svg_card(
             "github-stats",
-            lambda theme: "",
+            lambda style: "",
             health=health,
             component="GitHub Stats card",
             active_assets=active_assets,
@@ -3640,9 +3600,9 @@ def _stats_card_paths(
     snapshot = build_github_stats_snapshot(
         repos, contribution_snapshot, merged_pull_requests
     )
-    return safe_themed_card(
+    return safe_svg_card(
         "github-stats",
-        lambda theme: build_stats_svg(snapshot, theme=theme),
+        lambda style: build_stats_svg(snapshot, style=style),
         health=health,
         component="GitHub Stats card",
         active_assets=active_assets,
@@ -3723,8 +3683,8 @@ def _research_content(
     )
 
 
-def _picture_block(paths: tuple[Path, Path] | None, alt: str) -> str:
-    return build_theme_picture_block(*paths, alt) if paths else ""
+def _picture_block(path: Path | None, alt: str) -> str:
+    return build_picture_block(path, alt) if path else ""
 
 
 def _cached_blog_content(
@@ -3835,7 +3795,7 @@ def main(health: HealthReport) -> None:
     )
     repos = _repository_snapshot(health)
     languages, languages_complete = _language_snapshot(repos, health)
-    language_paths = _language_card_paths(
+    language_path = _language_card_path(
         languages,
         languages_complete,
         repos is not None,
@@ -3844,19 +3804,19 @@ def main(health: HealthReport) -> None:
     )
     contribution_snapshot = fetch_contribution_snapshot(health)
     merged_pull_requests = fetch_merged_pull_request_count(health)
-    stats_paths = _stats_card_paths(
+    stats_path = _stats_card_path(
         repos,
         contribution_snapshot,
         merged_pull_requests,
         health=health,
         active_assets=active_assets,
     )
-    activity_paths = write_activity_svgs(
+    activity_path = write_activity_svg(
         contribution_snapshot, health=health, active_assets=active_assets
     )
-    workflow_paths = safe_themed_card(
+    workflow_path = safe_svg_card(
         "development-workflow",
-        lambda theme: build_development_workflow_svg(theme=theme),
+        lambda style: build_development_workflow_svg(style=style),
         health=health,
         component="Development Workflow card",
         active_assets=active_assets,
@@ -3884,7 +3844,7 @@ def main(health: HealthReport) -> None:
         Section(
             "DEVELOPMENT-WORKFLOW",
             "DEVELOPMENT WORKFLOW",
-            (_picture_block(workflow_paths, "Development Workflow"),),
+            (_picture_block(workflow_path, "Development Workflow"),),
         ),
         Section("FEATURED-PROJECTS", "FEATURED PROJECTS", (featured,)),
         Section("SECURITY-PRACTICE", "SECURITY PRACTICE", (practice,)),
@@ -3893,14 +3853,14 @@ def main(health: HealthReport) -> None:
         Section(
             "MOST-USED-LANGUAGES",
             "MOST USED LANGUAGES",
-            (_picture_block(language_paths, "Most Used Languages"),),
+            (_picture_block(language_path, "Most Used Languages"),),
         ),
         Section(
             "GITHUB-STATS",
             "GITHUB STATS",
             (
-                _picture_block(stats_paths, "GitHub Stats"),
-                _picture_block(activity_paths, "GitHub Activity · 365 Days"),
+                _picture_block(stats_path, "GitHub Stats"),
+                _picture_block(activity_path, "GitHub Activity · 365 Days"),
             ),
         ),
     ]

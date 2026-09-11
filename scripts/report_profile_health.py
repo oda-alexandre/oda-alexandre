@@ -150,6 +150,7 @@ def _workflow_outcomes(generate_outcome: str) -> dict[str, str]:
         "README generation": generate_outcome,
         "Published snapshot verification": os.environ.get("PROFILE_VERIFY_OUTCOME", ""),
         "Published profile publication": os.environ.get("PROFILE_COMMIT_OUTCOME", ""),
+        "GitLab repository mirroring": os.environ.get("PROFILE_MIRROR_OUTCOME", ""),
     }
 
 

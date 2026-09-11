@@ -7,6 +7,8 @@ on:
   push:
     branches:
       - dev
+    tags:
+      - 'v*'
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
@@ -170,6 +172,61 @@ jobs:
             git worktree remove "$PUBLISH_DIR" --force || true
           fi
 
+      - name: Mirror GitHub repository to GitLab
+        id: mirror
+        if: steps.commit.outcome == 'success'
+        shell: bash
+        env:
+          GITLAB_MIRROR_SSH_KEY: ${{ secrets.GITLAB_MIRROR_SSH_KEY }}
+          GITLAB_MIRROR_URL: git@gitlab.com:oda-alexandre/oda-alexandre.git
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GITLAB_MIRROR_SSH_KEY:-}" ]; then
+            echo "::error::GITLAB_MIRROR_SSH_KEY is required for GitLab mirroring."
+            exit 1
+          fi
+
+          SSH_KEY_PATH="$RUNNER_TEMP/gitlab-mirror-ed25519"
+          KNOWN_HOSTS_PATH="$RUNNER_TEMP/gitlab-known-hosts"
+          cleanup_mirror_credentials() {
+            rm -f "$SSH_KEY_PATH" "$KNOWN_HOSTS_PATH"
+          }
+          trap cleanup_mirror_credentials EXIT
+
+          # The deploy key exists only for the lifetime of this ephemeral runner.
+          # Strip CR characters in case the multiline GitHub secret was pasted
+          # from an environment using CRLF line endings.
+          printf '%s\n' "$GITLAB_MIRROR_SSH_KEY" | tr -d '\r' > "$SSH_KEY_PATH"
+          chmod 600 "$SSH_KEY_PATH"
+          ssh-keygen -y -f "$SSH_KEY_PATH" >/dev/null
+
+          # Pin GitLab.com's published Ed25519 host key instead of trusting a
+          # runtime ssh-keyscan result.
+          cat > "$KNOWN_HOSTS_PATH" <<'EOF'
+          gitlab.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAfuCHKVTjquxvt6CM6tdG4SLp1Btn/nOeHHE5UOzRdf
+          EOF
+          chmod 600 "$KNOWN_HOSTS_PATH"
+
+          export GIT_SSH_COMMAND="ssh -i $SSH_KEY_PATH -o IdentitiesOnly=yes -o IdentityAgent=none -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$KNOWN_HOSTS_PATH"
+
+          # Re-fetch GitHub after publication because origin/main may have moved
+          # in the detached publication worktree. Only the two project branches
+          # and protected release tags (v*) are replicated; GitHub-internal refs
+          # and unrelated tags are excluded.
+          git fetch origin --prune \
+            '+refs/heads/main:refs/remotes/origin/main' \
+            '+refs/heads/dev:refs/remotes/origin/dev' \
+            '+refs/tags/v*:refs/tags/v*'
+
+          # Do not force divergent GitLab refs. A divergence is an incident that
+          # must be investigated, not silently overwritten. Atomic push keeps
+          # main, dev, and v* tags at one consistent mirrored point.
+          git push --atomic "$GITLAB_MIRROR_URL" \
+            refs/remotes/origin/main:refs/heads/main \
+            refs/remotes/origin/dev:refs/heads/dev \
+            'refs/tags/v*:refs/tags/v*'
+
       - name: Report profile health
         if: always()
         shell: bash
@@ -180,4 +237,5 @@ jobs:
           PROFILE_GENERATE_OUTCOME: ${{ steps.profile.outcome }}
           PROFILE_VERIFY_OUTCOME: ${{ steps.verify.outcome }}
           PROFILE_COMMIT_OUTCOME: ${{ steps.commit.outcome }}
+          PROFILE_MIRROR_OUTCOME: ${{ steps.mirror.outcome }}
         run: python3 scripts/report_profile_health.py

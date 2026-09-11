@@ -80,7 +80,7 @@ Do not center chart axes merely for visual symmetry.
 
 ## 3. Card families
 
-All generated SVG cards share the same frame, theme, glow, radius, and font
+All generated SVG cards share the same frame, glow, radius, color palette, and font
 family through `svg_card_frame()`, `svg_card_document()`, and
 `svg_typography_css()`.
 
@@ -118,7 +118,7 @@ Security Research must never invent progression. HackerOne keeps two distinct
 card roles while reusing the existing shared primitives:
 
 - the HackerOne **profile card** is centered and entirely linked to the public
-  researcher profile through `build_linked_picture()`. When Signal/Impact exist it
+  researcher profile through `build_linked_image()`. When Signal/Impact exist it
   uses the semantic KPI roles for Reputation / Signal / Impact. When a public
   disclosure makes the profile meaningful before those metrics are calculated,
   reuse `build_compact_link_card_svg()` instead of inventing a disclosure-status
@@ -128,7 +128,7 @@ card roles while reusing the existing shared primitives:
   rendered through `build_security_research_evidence_card_svg()`. Evidence cards
   use the existing 220px compact geometry, canonical frame and semantic roles:
   program/source -> `card-title`, public report title -> `card-description`, and
-  severity/CWE/CVE -> `meta`. The surrounding `<a><picture>...</picture></a>`
+  severity/CWE/CVE -> `meta`. The surrounding `<a><img ...></a>`
   makes the whole card clickable to the public report, so no redundant CTA,
   status line, or arrow is rendered inside the SVG.
 - evidence cards use `centered_card_rows(..., per_row=3)` and are capped at six
@@ -166,7 +166,7 @@ Structure:
 - issuer -> `card-description`
 - one temporal line -> `meta`
 
-The surrounding `<a><picture>...</picture></a>` is the verification action. Do
+The surrounding `<a><img ...></a>` is the verification action. Do
 not render `VERIFY`, an arrow, or another CTA inside the certification SVG.
 
 Time display rule:
@@ -283,8 +283,9 @@ Dynamic content follows this priority:
 Never let a transient API failure replace a good public card with an error
 placeholder.
 
-Dark/light SVG pairs are atomic: build both before replacing the previous pair.
-A card should never publish a new dark asset with an old/missing light asset.
+Generated components are stored as `assets/generated/<stem>.svg`. Build the
+complete document in a temporary file before atomically replacing the previous
+asset, so a failed refresh cannot destroy last-good public content.
 
 External platform APIs must be isolated behind adapter functions, use secrets
 only from the workflow environment, and follow the same last-good + Profile
@@ -323,9 +324,9 @@ Before implementing a new feature:
 6. Make the whole section disappear when every child is empty.
 7. Define last-good fallback behaviour for dynamic data.
 8. Send operational errors to Profile Health, not to the public README.
-9. Generate dark + light assets through the shared themed helpers when the
-   component is dynamic. Stable, intentionally vendored visual assets such as
-   CONTACT badges belong outside `assets/generated/`.
+9. Generate dynamic SVGs through the shared asset helpers. Stable, intentionally
+   vendored visual assets such as CONTACT badges belong outside
+   `assets/generated/`.
 10. Add new generated assets to the normal active-asset lifecycle; never commit
     generated SVGs to the source ZIP/dev branch.
 
