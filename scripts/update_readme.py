@@ -21,6 +21,7 @@ rule exists rather than restating the SVG/HTML syntax.
 from __future__ import annotations
 
 import base64
+import datetime as dt
 from dataclasses import dataclass
 import html
 import hashlib
@@ -263,6 +264,16 @@ LINKEDIN_URL = (
     "&trk=public_profile_top-card-primary-button-join-to-connect"
 )
 
+HTB_TOKEN = os.environ.get("HTB_TOKEN", "").strip()
+HTB_API_BASE_URL = os.environ.get(
+    "HTB_API_BASE_URL", "https://labs.hackthebox.com/api/v4"
+).rstrip("/")
+HTB_INVALID_USER_ID_ERROR = "HTB user/info response does not contain a valid user id"
+HACKERONE_API_TOKEN = os.environ.get("HACKERONE_API_TOKEN", "").strip()
+HACKERONE_API_BASE_URL = os.environ.get(
+    "HACKERONE_API_BASE_URL", "https://api.hackerone.com/v1"
+).rstrip("/")
+
 PROVIDER = load_provider()
 USERNAME = PROVIDER.username
 
@@ -310,15 +321,15 @@ def fetch_hack_the_box_snapshot(health: HealthReport) -> HackTheBoxSnapshot | No
             raise RuntimeError("HTB user/info response does not contain info")
         raw_user_id: Any = info.get("id")
         if raw_user_id is None:
-            raise RuntimeError("HTB user/info response does not contain a valid user id")
+            raise RuntimeError(HTB_INVALID_USER_ID_ERROR)
         try:
             user_id = int(raw_user_id)
         except (TypeError, ValueError) as exc:
             raise RuntimeError(
-                "HTB user/info response does not contain a valid user id"
+                HTB_INVALID_USER_ID_ERROR
             ) from exc
         if user_id <= 0:
-            raise RuntimeError("HTB user/info response does not contain a valid user id")
+            raise RuntimeError(HTB_INVALID_USER_ID_ERROR)
 
         profile_payload = htb_json(f"user/profile/basic/{user_id}")
         if not is_json_object(profile_payload):
