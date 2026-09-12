@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2024-2026 ODA Alexandre
 # SPDX-License-Identifier: EUPL-1.2+
 
@@ -22,32 +21,35 @@ from __future__ import annotations
 
 import base64
 import datetime as dt
-from dataclasses import dataclass
-import html
-from html.parser import HTMLParser
 import hashlib
+import html
 import json
 import math
 import os
 import re
-import tomllib
 import textwrap
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
+from collections.abc import Callable, Sized
+from dataclasses import dataclass
+from html.parser import HTMLParser
 from pathlib import Path
+from typing import Any, cast
 from urllib.parse import urlencode, urlparse
-from typing import Any, Callable
 
+import tomllib
 from providers import load_provider
 from providers.base import (
+    CommunitySnapshot,
     ContributionDay,
     ContributionSnapshot,
+    FeaturedProject,
     ForgeStatsSnapshot,
-    JsonArray,
     JsonContainer,
     JsonObject,
     ProfileSnapshot,
+    SocialAccount,
     is_json_array,
     is_json_object,
 )
@@ -66,7 +68,6 @@ FEATURED_PROJECT_CARD_WIDTH = 340
 FEATURED_PROJECT_CARD_HEIGHT = 156
 
 JSON_MEDIA_TYPE = "application/json"
-STATS_PERIOD_LABEL = "· 365d"
 SLUG_SEPARATOR_RE = re.compile(r"[^a-z0-9]+")
 SECURITY_RESEARCH_CONFIG_COMPONENT = "Security Research configuration"
 CERTIFICATIONS_CONFIG_COMPONENT = "Certifications configuration"
@@ -177,9 +178,7 @@ class HackerOneSnapshot:
         One public disclosure is independently sufficient evidence.
         """
         return (
-            self.signal is not None
-            or self.impact is not None
-            or bool(self.disclosures)
+            self.signal is not None or self.impact is not None or bool(self.disclosures)
         )
 
 
@@ -198,9 +197,7 @@ class Section:
 
     @property
     def content(self) -> str:
-        return "\n\n".join(
-            part.strip() for part in self.parts if part and part.strip()
-        )
+        return "\n\n".join(part.strip() for part in self.parts if part and part.strip())
 
 
 class HealthReport:
@@ -278,6 +275,7 @@ HACKERONE_API_BASE_URL = os.environ.get(
 PROVIDER = load_provider()
 USERNAME = PROVIDER.username
 
+
 def htb_json(path: str) -> JsonContainer:
     """Call the HTB Labs API without ever exposing the App Token in output.
 
@@ -326,9 +324,7 @@ def fetch_hack_the_box_snapshot(health: HealthReport) -> HackTheBoxSnapshot | No
         try:
             user_id = int(raw_user_id)
         except (TypeError, ValueError) as exc:
-            raise RuntimeError(
-                HTB_INVALID_USER_ID_ERROR
-            ) from exc
+            raise RuntimeError(HTB_INVALID_USER_ID_ERROR) from exc
         if user_id <= 0:
             raise RuntimeError(HTB_INVALID_USER_ID_ERROR)
 
@@ -349,10 +345,12 @@ def fetch_hack_the_box_snapshot(health: HealthReport) -> HackTheBoxSnapshot | No
         try:
             progress = float(raw_progress)
         except (TypeError, ValueError) as exc:
-            raise RuntimeError("HTB basic profile response has invalid rank progress") from exc
+            raise RuntimeError(
+                "HTB basic profile response has invalid rank progress"
+            ) from exc
         progress = max(0.0, min(100.0, progress))
         return HackTheBoxSnapshot(rank=rank, next_rank=next_rank, progress=progress)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         health.add("Hack The Box Labs", exc)
         return None
 
@@ -385,9 +383,9 @@ def hackerone_json(
     url = f"{HACKERONE_API_BASE_URL}/{path.lstrip('/')}"
     if query:
         url = f"{url}?{urlencode(query)}"
-    credentials = base64.b64encode(
-        f"{username}:{HACKERONE_API_TOKEN}".encode("utf-8")
-    ).decode("ascii")
+    credentials = base64.b64encode(f"{username}:{HACKERONE_API_TOKEN}".encode()).decode(
+        "ascii"
+    )
     request = urllib.request.Request(
         url,
         headers={
@@ -412,7 +410,7 @@ def _hackerone_metric(value: object, name: str) -> float | None:
     if value is None:
         return None
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise RuntimeError(f"HackerOne reporter {name} is not numeric")
+        raise TypeError(f"HackerOne reporter {name} is not numeric")
     numeric = float(value)
     if not math.isfinite(numeric):
         raise RuntimeError(f"HackerOne reporter {name} is not finite")
@@ -443,7 +441,9 @@ def _extract_hackerone_metrics(
         reporter_username
         and reporter_username.casefold() != expected_username.casefold()
     ):
-        raise RuntimeError("HackerOne report reporter does not match configured profile")
+        raise RuntimeError(
+            "HackerOne report reporter does not match configured profile"
+        )
 
     return (
         _hackerone_metric(attributes.get("reputation"), "reputation"),
@@ -506,7 +506,6 @@ def _hackerone_first_text(value: object) -> str:
     return ""
 
 
-
 def _hackerone_relationship_attributes(
     relationships: JsonObject,
     relation: str,
@@ -530,9 +529,7 @@ def _hackerone_public_url(attributes: JsonObject) -> str:
     url = valid_external_url(attributes.get("url"))
     allowed_hosts = {"hackerone.com", "www.hackerone.com"}
     if not url or urlparse(url).netloc.casefold() not in allowed_hosts:
-        raise RuntimeError(
-            "HackerOne public disclosure does not contain a valid URL"
-        )
+        raise RuntimeError("HackerOne public disclosure does not contain a valid URL")
     return url
 
 
@@ -545,7 +542,9 @@ def _hackerone_disclosure_from_item(
     attributes = item.get("attributes")
     relationships = item.get("relationships")
     if not is_json_object(attributes) or not is_json_object(relationships):
-        raise RuntimeError("HackerOne disclosure is missing attributes or relationships")
+        raise RuntimeError(
+            "HackerOne disclosure is missing attributes or relationships"
+        )
     if attributes.get("disclosed") is not True:
         raise RuntimeError("HackerOne Hacktivity returned a non-public item")
 
@@ -595,10 +594,8 @@ def _fetch_hackerone_disclosures(
     if not is_json_array(items):
         raise RuntimeError("Unexpected HackerOne Hacktivity response")
     return tuple(
-        _hackerone_disclosure_from_item(item, username)
-        for item in items[:limit]
+        _hackerone_disclosure_from_item(item, username) for item in items[:limit]
     )
-
 
 
 def fetch_hackerone_snapshot(
@@ -614,19 +611,19 @@ def fetch_hackerone_snapshot(
     """
     try:
         username = _hackerone_username(profile_url)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         health.add("HackerOne profile", exc)
         return None
 
     try:
         reputation, signal, impact = _fetch_hackerone_metrics(username)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         health.add("HackerOne reports", exc)
         return None
 
     try:
         disclosures = _fetch_hackerone_disclosures(username)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         health.add("HackerOne Hacktivity", exc)
         return None
 
@@ -658,10 +655,7 @@ class _VisibleTextParser(HTMLParser):
             self._suppressed_depth += 1
 
     def handle_endtag(self, tag: str) -> None:
-        if (
-            tag.casefold() in self._SUPPRESSED_ELEMENTS
-            and self._suppressed_depth > 0
-        ):
+        if tag.casefold() in self._SUPPRESSED_ELEMENTS and self._suppressed_depth > 0:
             self._suppressed_depth -= 1
 
     def handle_data(self, data: str) -> None:
@@ -705,7 +699,9 @@ def _cyberdefenders_username(profile_url: str) -> str:
     parsed = urlparse(profile_url)
     username = parsed.path.rstrip("/").split("/")[-1].strip()
     if not username or not re.fullmatch(r"[A-Za-z0-9_.-]+", username):
-        raise RuntimeError("CyberDefenders profile URL does not contain a valid username")
+        raise RuntimeError(
+            "CyberDefenders profile URL does not contain a valid username"
+        )
     return username
 
 
@@ -775,9 +771,7 @@ def _fetch_cyberdefenders_progress(profile_url: str) -> float:
             raise RuntimeError(f"CyberDefenders skills payload is missing {skill_name}")
         value = skill.get("progress")
         if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise RuntimeError(
-                f"CyberDefenders progress for {skill_name} is not numeric"
-            )
+            raise TypeError(f"CyberDefenders progress for {skill_name} is not numeric")
         numeric = float(value)
         if not 0.0 <= numeric <= 100.0:
             raise RuntimeError(
@@ -808,9 +802,7 @@ def _cached_cyberdefenders_value(kind: str) -> str | float | None:
         if match:
             return float(match.group(1))
     elif kind == "rank":
-        match = re.search(
-            r'<text class="status-value"[^>]*>([^<]+)</text>', document
-        )
+        match = re.search(r'<text class="status-value"[^>]*>([^<]+)</text>', document)
         if match:
             return match.group(1).strip()
     return None
@@ -831,7 +823,7 @@ def fetch_cyberdefenders_snapshot(
 
     try:
         rank = _fetch_cyberdefenders_rank(profile_url)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         health.add("CyberDefenders rank", exc)
         cached_rank = _cached_cyberdefenders_value("rank")
         if isinstance(cached_rank, str) and cached_rank:
@@ -839,7 +831,7 @@ def fetch_cyberdefenders_snapshot(
 
     try:
         progress = _fetch_cyberdefenders_progress(profile_url)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         health.add("CyberDefenders progress", exc)
         cached_progress = _cached_cyberdefenders_value("progress")
         if isinstance(cached_progress, (int, float)):
@@ -851,7 +843,7 @@ def fetch_cyberdefenders_snapshot(
 
 
 def replace_block(text: str, start: str, end: str, body: str) -> str:
-    pattern = re.compile(re.escape(start) + r".*?" + re.escape(end), re.S)
+    pattern = re.compile(re.escape(start) + r".*?" + re.escape(end), re.DOTALL)
     replacement = f"{start}\n{body}\n{end}"
     updated, count = pattern.subn(lambda _: replacement, text, count=1)
     if count != 1:
@@ -860,7 +852,7 @@ def replace_block(text: str, start: str, end: str, body: str) -> str:
 
 
 def block_body(text: str, start: str, end: str) -> str:
-    match = re.search(re.escape(start) + r"(.*?)" + re.escape(end), text, re.S)
+    match = re.search(re.escape(start) + r"(.*?)" + re.escape(end), text, re.DOTALL)
     if not match:
         return ""
     return match.group(1).strip("\n")
@@ -878,15 +870,15 @@ def versioned_asset_url(path: Path) -> str:
 
 def replace_reference(text: str, name: str, url: str) -> str:
     """Replace one Markdown reference definition while preserving the template."""
-    pattern = re.compile(rf"^\[{re.escape(name)}\]:\s+\S+\s*$", re.M)
+    pattern = re.compile(rf"^\[{re.escape(name)}\]:\s+\S+\s*$", re.MULTILINE)
     updated, count = pattern.subn(f"[{name}]: {url}", text, count=1)
     if count != 1:
         raise RuntimeError(f"Missing or duplicated Markdown reference: {name}")
     return updated
 
 
-def download_public_image(url: str) -> tuple[bytes, str]:
-    """Download a small public image without forwarding the GitHub token."""
+def download_public_image(url: str, *, source_name: str) -> tuple[bytes, str]:
+    """Download a small public image without forwarding forge credentials."""
     request = urllib.request.Request(
         url,
         headers={
@@ -899,9 +891,9 @@ def download_public_image(url: str) -> tuple[bytes, str]:
         data = response.read(MAX_AVATAR_BYTES + 1)
 
     if len(data) > MAX_AVATAR_BYTES:
-        raise RuntimeError("GitHub avatar exceeds the configured size limit")
+        raise RuntimeError(f"{source_name} avatar exceeds the configured size limit")
     if not data:
-        raise RuntimeError("GitHub avatar download returned an empty body")
+        raise RuntimeError(f"{source_name} avatar download returned an empty body")
 
     allowed_types = {
         "image/png",
@@ -912,24 +904,24 @@ def download_public_image(url: str) -> tuple[bytes, str]:
     }
     if content_type not in allowed_types:
         raise RuntimeError(
-            f"Unexpected GitHub avatar content type: {content_type or 'unknown'}"
+            f"Unexpected {source_name} avatar content type: {content_type or 'unknown'}"
         )
     return data, content_type
 
 
-def write_avatar_svg(avatar_url: str) -> Path:
-    """Embed the current GitHub avatar in a transparent SVG."""
+def write_avatar_svg(avatar_url: str, *, source_name: str) -> Path:
+    """Embed the active forge avatar in a transparent SVG."""
     ASSET_DIR.mkdir(parents=True, exist_ok=True)
-    avatar_bytes, mime_type = download_public_image(avatar_url)
+    avatar_bytes, mime_type = download_public_image(avatar_url, source_name=source_name)
     encoded = base64.b64encode(avatar_bytes).decode("ascii")
 
     def build_svg() -> str:
         return (
             '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" '
-            'viewBox="0 0 200 200" role="img" aria-label="GitHub avatar">\n'
+            f'viewBox="0 0 200 200" role="img" aria-label="{svg_escape(source_name)} avatar">\n'
             f'  <image x="0" y="0" width="200" height="200" '
             f'preserveAspectRatio="xMidYMid meet" href="data:{mime_type};base64,{encoded}"/>\n'
-            '</svg>\n'
+            "</svg>\n"
         )
 
     return write_svg(
@@ -942,18 +934,19 @@ def build_avatar_block(
     avatar_url: str,
     display_name: object,
     *,
+    source_name: str,
     health: HealthReport,
     active_assets: set[str],
 ) -> str:
     """Generate the avatar, preserving the last valid local SVG on failure."""
-    avatar_alt = html.escape(f"{display_name} GitHub avatar", quote=True)
+    avatar_alt = html.escape(f"{display_name} {source_name} avatar", quote=True)
     avatar_title = html.escape(str(display_name), quote=True)
     path = generated_asset_path("avatar")
 
     try:
-        path = write_avatar_svg(avatar_url)
-    except Exception as exc:
-        health.add("GitHub avatar", exc)
+        path = write_avatar_svg(avatar_url, source_name=source_name)
+    except Exception as exc:  # noqa: BLE001
+        health.add(f"{source_name} avatar", exc)
         if not path.exists():
             escaped_url = html.escape(str(avatar_url), quote=True)
             return (
@@ -968,6 +961,7 @@ def build_avatar_block(
         f'alt="{avatar_alt}" title="{avatar_title}">'
     )
 
+
 def normalize_url(value: str) -> str:
     value = (value or "").strip()
     if not value:
@@ -979,29 +973,54 @@ def normalize_url(value: str) -> str:
 
 
 def current_reference(text: str, name: str) -> str:
-    match = re.search(rf"^\[{re.escape(name)}\]:\s+(\S+)", text, re.M)
+    match = re.search(rf"^\[{re.escape(name)}\]:\s+(\S+)", text, re.MULTILINE)
     return match.group(1) if match else ""
 
 
-def derive_gitlab_username(text: str, social_accounts: list[JsonObject]) -> str:
-    # Prefer a GitLab social link exposed by GitHub, if configured.
-    candidates = [normalize_url(a.get("url") or "") for a in social_accounts]
-    # Fall back to the last known GitLab link in the README.
-    candidates.append(current_reference(text, "gitlab_url"))
+def _forge_hosts(forge: str) -> set[str]:
+    return {f"{forge}.com", f"www.{forge}.com"}
 
+
+def _forge_profile_url(
+    forge: str,
+    *,
+    published: str,
+    social_accounts: list[SocialAccount],
+    active_profile_url: str,
+) -> str:
+    """Resolve one public forge profile from active data, socials, then cache."""
+    if PROVIDER.key == forge:
+        candidate = normalize_url(active_profile_url)
+        if candidate:
+            return candidate
+
+    candidates = [
+        normalize_url(account.url)
+        for account in social_accounts
+        if account.provider == forge
+        or urlparse(account.url).netloc.casefold() in _forge_hosts(forge)
+    ]
+    candidates.append(current_reference(published, f"{forge}_url"))
     for candidate in candidates:
-        if not candidate:
-            continue
         parsed = urlparse(candidate)
-        if parsed.netloc.lower() not in {"gitlab.com", "www.gitlab.com"}:
+        if parsed.netloc.casefold() not in _forge_hosts(forge):
             continue
         segments = [segment for segment in parsed.path.split("/") if segment]
         if segments:
-            return segments[0]
+            return candidate.rstrip("/")
 
-    # Both public profiles currently use the same username. This also makes a
-    # fresh repository work before the first generated README exists.
-    return USERNAME
+    # Fresh publications remain usable even when the secondary forge is not yet
+    # advertised. Existing cached references take precedence over this fallback.
+    return f"https://{forge}.com/{USERNAME}"
+
+
+def _profile_username(url: str, *, forge: str, fallback: str) -> str:
+    parsed = urlparse(url)
+    if parsed.netloc.casefold() in _forge_hosts(forge):
+        segments = [segment for segment in parsed.path.split("/") if segment]
+        if segments:
+            return segments[0]
+    return fallback
 
 
 def svg_escape(value: object) -> str:
@@ -1024,20 +1043,20 @@ def svg_typography_css(style: SvgStyle) -> str:
     """
     return (
         'text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", '
-        'Roboto, Helvetica, Arial, sans-serif; }\n'
-        f'.card-title {{ fill: #{style.text_color}; font-size: 15px; font-weight: 600; }}\n'
-        f'.card-description {{ fill: #{style.muted_color}; font-size: 13px; font-weight: 400; }}\n'
-        f'.metric-value {{ fill: #{style.text_color}; font-size: 30px; font-weight: 700; }}\n'
-        f'.metric-label {{ fill: #{style.muted_color}; font-size: 13px; font-weight: 400; }}\n'
-        f'.status-value {{ fill: #{style.text_color}; font-size: 17px; font-weight: 600; }}\n'
-        f'.data-label {{ fill: #{style.text_color}; font-size: 15px; font-weight: 600; }}\n'
-        f'.data-meta {{ fill: #{style.muted_color}; font-size: 13px; font-weight: 400; }}\n'
-        f'.meta {{ fill: #{style.muted_color}; font-size: 11px; font-weight: 400; }}\n'
-        f'.action-label {{ fill: #{PROFILE_COLOR}; font-size: 10px; font-weight: 700; '
-        'letter-spacing: 0.65px; }\n'
-        f'.connector-label {{ fill: #{PROFILE_COLOR}; font-size: {CONNECTOR_LABEL_FONT_SIZE:.1f}px; '
-        f'font-weight: 700; letter-spacing: {CONNECTOR_LABEL_LETTER_SPACING:.2f}px; '
-        'font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }'
+        "Roboto, Helvetica, Arial, sans-serif; }\n"
+        f".card-title {{ fill: #{style.text_color}; font-size: 15px; font-weight: 600; }}\n"
+        f".card-description {{ fill: #{style.muted_color}; font-size: 13px; font-weight: 400; }}\n"
+        f".metric-value {{ fill: #{style.text_color}; font-size: 30px; font-weight: 700; }}\n"
+        f".metric-label {{ fill: #{style.muted_color}; font-size: 13px; font-weight: 400; }}\n"
+        f".status-value {{ fill: #{style.text_color}; font-size: 17px; font-weight: 600; }}\n"
+        f".data-label {{ fill: #{style.text_color}; font-size: 15px; font-weight: 600; }}\n"
+        f".data-meta {{ fill: #{style.muted_color}; font-size: 13px; font-weight: 400; }}\n"
+        f".meta {{ fill: #{style.muted_color}; font-size: 11px; font-weight: 400; }}\n"
+        f".action-label {{ fill: #{PROFILE_COLOR}; font-size: 10px; font-weight: 700; "
+        "letter-spacing: 0.65px; }\n"
+        f".connector-label {{ fill: #{PROFILE_COLOR}; font-size: {CONNECTOR_LABEL_FONT_SIZE:.1f}px; "
+        f"font-weight: 700; letter-spacing: {CONNECTOR_LABEL_LETTER_SPACING:.2f}px; "
+        "font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }"
     )
 
 
@@ -1108,12 +1127,12 @@ def svg_card_document(
 ) -> str:
     """Wrap generated content in the shared SVG document/card scaffold."""
     frame = svg_card_frame(0, 0, width, height, style=style) if include_frame else ""
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-label="{svg_escape(aria_label)}">
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-label="{svg_escape(aria_label)}">
   <defs>{svg_soft_glow_filter()}{defs_extra}</defs>
   <style>{svg_typography_css(style)}</style>
   {frame}
   {content}
-</svg>\n'''
+</svg>\n"""
 
 
 def generated_asset_path(stem: str) -> Path:
@@ -1162,7 +1181,7 @@ def write_svg_with_fallback(
 
     try:
         path = write_svg(stem, builder)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         health.add(component, exc)
         if not path.exists():
             return None
@@ -1190,6 +1209,7 @@ def safe_svg_card(
         active_assets=active_assets,
     )
 
+
 def build_languages_svg(languages: dict[str, int], *, style: SvgStyle) -> str:
     """Render chart-like language data; data alignment intentionally beats centering.
 
@@ -1210,7 +1230,9 @@ def build_languages_svg(languages: dict[str, int], *, style: SvgStyle) -> str:
         f'<stop offset="100%" stop-color="#{PROFILE_COLOR}" stop-opacity="0.52"/></linearGradient>'
     )
 
-    def language_bar(x: float, y: float, total_width: float, fill_width: float, opacity: float) -> str:
+    def language_bar(
+        x: float, y: float, total_width: float, fill_width: float, opacity: float
+    ) -> str:
         return (
             f'<rect x="{x}" y="{y}" width="{total_width:.1f}" height="7" rx="3.5" '
             f'fill="#{style.track_color}" fill-opacity="{track_fill_opacity:.2f}"/>'
@@ -1235,7 +1257,9 @@ def build_languages_svg(languages: dict[str, int], *, style: SvgStyle) -> str:
                 [
                     f'<text class="data-label" x="{CARD_PADDING_X}" y="{y}">{svg_escape(language)}</text>',
                     f'<text class="data-meta" x="{width - CARD_PADDING_X}" y="{y}" text-anchor="end">{pct:.1f}%</text>',
-                    language_bar(CARD_PADDING_X, y + SPACE_SM, 570.0, bar_width, opacity),
+                    language_bar(
+                        CARD_PADDING_X, y + SPACE_SM, 570.0, bar_width, opacity
+                    ),
                 ]
             )
     else:
@@ -1275,22 +1299,14 @@ def build_stats_svg(
     *,
     style: SvgStyle,
 ) -> str:
-    """Render compact professional GitHub collaboration and impact signals.
-
-    This card intentionally avoids followers, repo counts and streaks. Community
-    owns follower context; Activity owns contribution rhythm; Stats should answer
-    how the account collaborates and what public impact its code has.
-    """
+    """Render compact forge-specific professional collaboration and impact signals."""
 
     def fmt(value: int) -> str:
         return f"{value:,}".replace(",", " ")
 
-    metrics = [
-        ("Merged PRs", STATS_PERIOD_LABEL, fmt(snapshot.merged_requests)),
-        ("Code reviews", STATS_PERIOD_LABEL, fmt(snapshot.reviews)),
-        ("Repos contributed", STATS_PERIOD_LABEL, fmt(snapshot.repositories_contributed)),
-        ("Stars earned", "", fmt(snapshot.stars_earned)),
-    ]
+    metrics = snapshot.metrics
+    if not metrics:
+        raise ValueError("Forge statistics snapshot does not contain metrics")
 
     width, height = SVG_WIDTH, STATS_CARD_HEIGHT
     blocks: list[str] = []
@@ -1298,7 +1314,7 @@ def build_stats_svg(
     separator_top = CARD_PADDING_Y
     separator_bottom = height - CARD_PADDING_Y
 
-    for index, (label, period, value) in enumerate(metrics):
+    for index, metric in enumerate(metrics):
         center_x = (cell_width * index) + (cell_width / 2)
         if index:
             x = cell_width * index
@@ -1309,31 +1325,30 @@ def build_stats_svg(
             )
         blocks.append(
             f'<text class="metric-value" x="{center_x:.0f}" y="58" '
-            f'text-anchor="middle">{svg_escape(value)}</text>'
+            f'text-anchor="middle">{svg_escape(fmt(metric.value))}</text>'
         )
         blocks.append(
             f'<text class="metric-label" x="{center_x:.0f}" y="91" '
-            f'text-anchor="middle">{svg_escape(label)}</text>'
+            f'text-anchor="middle">{svg_escape(metric.label)}</text>'
         )
-        if period:
+        if metric.period:
             blocks.append(
                 f'<text class="meta" x="{center_x:.0f}" y="111" '
-                f'text-anchor="middle">{svg_escape(period)}</text>'
+                f'text-anchor="middle">{svg_escape(metric.period)}</text>'
             )
 
     return svg_card_document(
         width=width,
         height=height,
-        aria_label=(
-            "GitHub professional statistics: merged pull requests, code reviews, "
-            "repositories contributed to, and stars earned"
-        ),
+        aria_label=snapshot.aria_label,
         style=style,
         content="".join(blocks),
     )
 
 
-def wrap_project_description(value: object, *, width: int = 43, max_lines: int = 3) -> list[str]:
+def wrap_project_description(
+    value: object, *, width: int = 43, max_lines: int = 3
+) -> list[str]:
     """Wrap one repository description into a compact deterministic SVG block."""
     text = re.sub(r"\s+", " ", str(value or "")).strip()
     if not text:
@@ -1354,42 +1369,31 @@ def wrap_project_description(value: object, *, width: int = 43, max_lines: int =
     return visible
 
 
-def featured_project_stem(repository: JsonObject) -> str:
-    """Return a stable generated-asset stem for one pinned repository."""
-    identity = str(
-        repository.get("nameWithOwner")
-        or repository.get("name")
-        or "repository"
-    )
+def featured_project_stem(repository: FeaturedProject) -> str:
+    """Return a stable generated-asset stem for one featured project."""
+    identity = repository.identity or repository.name or "repository"
     slug = SLUG_SEPARATOR_RE.sub("-", identity.casefold()).strip("-")[:44]
-    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:8]
+    digest = hashlib.sha256(identity.encode()).hexdigest()[:8]
     return f"featured-project-{slug or 'repository'}-{digest}"
 
 
 def build_featured_project_card_svg(
-    repository: JsonObject,
+    repository: FeaturedProject,
     *,
     style: SvgStyle,
 ) -> str:
-    """Render one pinned repository using the shared semantic card hierarchy."""
+    """Render one featured project using the shared semantic card hierarchy."""
     width = FEATURED_PROJECT_CARD_WIDTH
     height = FEATURED_PROJECT_CARD_HEIGHT
     center_x = width / 2
-    name = str(repository.get("name") or "").strip()
+    name = repository.name.strip()
     if not name:
-        raise ValueError("Pinned repository is missing its name")
+        raise ValueError("Featured project is missing its name")
 
-    raw_owner: Any = repository.get("owner")
-    owner: JsonObject = raw_owner if is_json_object(raw_owner) else {}
-    owner_login = str(owner.get("login") or "").strip()
-    contributed = bool(owner_login) and owner_login.casefold() != USERNAME.casefold()
-    description_lines = wrap_project_description(repository.get("description"))
-    raw_language_data: Any = repository.get("primaryLanguage")
-    language_data: JsonObject = (
-        raw_language_data if is_json_object(raw_language_data) else {}
-    )
-    language = str(language_data.get("name") or "").strip()
-    stars = int(repository.get("stargazerCount") or 0)
+    contributed = repository.contributed
+    description_lines = wrap_project_description(repository.description)
+    language = repository.primary_language.strip()
+    stars = repository.stars
     stars_label = f"★ {stars:,}".replace(",", " ")
     metadata = f"{language} · {stars_label}" if language else stars_label
 
@@ -1421,7 +1425,7 @@ def build_featured_project_card_svg(
         content.append(
             f'<text class="card-description" x="{center_x:.1f}" '
             f'y="{80 + (index * 18)}" text-anchor="middle">'
-            f'{svg_escape(line)}</text>'
+            f"{svg_escape(line)}</text>"
         )
 
     content.append(
@@ -1443,7 +1447,7 @@ def render_centered_paragraph(items: list[str], *, separator: str = "\n  ") -> s
     visible = [item for item in items if item]
     if not visible:
         return ""
-    return '<p align="center">\n  ' + separator.join(visible) + '\n</p>'
+    return '<p align="center">\n  ' + separator.join(visible) + "\n</p>"
 
 
 def centered_card_rows(cards: list[str], *, per_row: int) -> str:
@@ -1453,27 +1457,21 @@ def centered_card_rows(cards: list[str], *, per_row: int) -> str:
         return ""
     rows: list[str] = []
     for offset in range(0, len(visible), per_row):
-        rows.append(
-            render_centered_paragraph(visible[offset : offset + per_row])
-        )
+        rows.append(render_centered_paragraph(visible[offset : offset + per_row]))
     return "\n\n".join(rows)
 
 
 def build_featured_projects_content(
-    repositories: list[JsonObject],
+    repositories: list[FeaturedProject],
     *,
     health: HealthReport,
     active_assets: set[str],
 ) -> str:
-    """Render GitHub profile pins as centered, individually linked cards.
-
-    GitHub pins are the portfolio CMS: their selection and order must come from
-    ``pinnedItems`` rather than a second hand-maintained project list.
-    """
+    """Render provider-selected projects as centered, individually linked cards."""
     cards: list[str] = []
     for repository in repositories[:6]:
-        url = valid_external_url(repository.get("url"))
-        name = str(repository.get("name") or "").strip()
+        url = valid_external_url(repository.url)
+        name = repository.name.strip()
         if not name or not url:
             continue
         stem = featured_project_stem(repository)
@@ -1501,11 +1499,10 @@ def build_featured_projects_content(
 def blend_hex(start_hex: str, end_hex: str, ratio: float) -> str:
     """Blend two six-digit RGB colors and return a six-digit hex string."""
     ratio = max(0.0, min(1.0, ratio))
-    start_rgb = tuple(int(start_hex[index:index + 2], 16) for index in (0, 2, 4))
-    end_rgb = tuple(int(end_hex[index:index + 2], 16) for index in (0, 2, 4))
+    start_rgb = tuple(int(start_hex[index : index + 2], 16) for index in (0, 2, 4))
+    end_rgb = tuple(int(end_hex[index : index + 2], 16) for index in (0, 2, 4))
     blended = tuple(
-        round(start + ((end - start) * ratio))
-        for start, end in zip(start_rgb, end_rgb)
+        round(start + ((end - start) * ratio)) for start, end in zip(start_rgb, end_rgb)
     )
     return "".join(f"{channel:02x}" for channel in blended)
 
@@ -1521,10 +1518,19 @@ def activity_level_colors(style: SvgStyle) -> dict[str, str]:
     }
 
 
-
 ACTIVITY_MONTH_NAMES = (
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
 )
 
 
@@ -1606,13 +1612,14 @@ def _activity_legend(colors: dict[str, str], *, width: int, height: int) -> str:
         colors["THIRD_QUARTILE"],
         colors["FOURTH_QUARTILE"],
     ]
-    legend_width = 28 + (len(legend_colors) * legend_cell) + (
-        (len(legend_colors) - 1) * legend_gap
-    ) + 31
+    legend_width = (
+        28
+        + (len(legend_colors) * legend_cell)
+        + ((len(legend_colors) - 1) * legend_gap)
+        + 31
+    )
     legend_x = width - CARD_PADDING_X - legend_width
-    blocks = [
-        f'<text class="data-meta" x="{legend_x}" y="{legend_y + 7}">Less</text>'
-    ]
+    blocks = [f'<text class="data-meta" x="{legend_x}" y="{legend_y + 7}">Less</text>']
     square_x = legend_x + 31
     for color in legend_colors:
         blocks.append(
@@ -1629,9 +1636,10 @@ def _activity_legend(colors: dict[str, str], *, width: int, height: int) -> str:
 def build_activity_svg(
     snapshot: ContributionSnapshot,
     *,
+    forge_name: str,
     style: SvgStyle,
 ) -> str:
-    """Render a GitHub-style heatmap with the shared card-title hierarchy."""
+    """Render a forge contribution heatmap with the shared card-title hierarchy."""
     width, height = SVG_WIDTH, ACTIVITY_CARD_HEIGHT
     title_y, total_y, months_y, grid_y = 29, 49, 68, 80
     cell_size, cell_gap = 8, 3
@@ -1640,10 +1648,14 @@ def build_activity_svg(
     colors = activity_level_colors(style)
     plural = "" if snapshot.total == 1 else "s"
     blocks = [
-        f'<text class="card-title" x="{width / 2:.1f}" y="{title_y}" '
-        'text-anchor="middle">GitHub Activity · 365 days</text>',
-        f'<text class="meta" x="{width / 2:.1f}" y="{total_y}" '
-        f'text-anchor="middle">{snapshot.total} contribution{plural}</text>',
+        (
+            f'<text class="card-title" x="{width / 2:.1f}" y="{title_y}" '
+            + f'text-anchor="middle">{svg_escape(forge_name)} Activity · 365 days</text>'
+        ),
+        (
+            f'<text class="meta" x="{width / 2:.1f}" y="{total_y}" '
+            + f'text-anchor="middle">{snapshot.total} contribution{plural}</text>'
+        ),
         _activity_month_labels(
             snapshot.weeks, grid_x=grid_x, cell_step=cell_step, months_y=months_y
         ),
@@ -1666,11 +1678,10 @@ def build_activity_svg(
     return svg_card_document(
         width=width,
         height=height,
-        aria_label="GitHub activity over 365 days",
+        aria_label=f"{forge_name} activity over 365 days",
         style=style,
         content="".join(blocks),
     )
-
 
 
 def write_activity_svg(
@@ -1679,24 +1690,29 @@ def write_activity_svg(
     health: HealthReport,
     active_assets: set[str],
 ) -> Path | None:
-    """Generate the activity SVG or preserve the last valid asset."""
+    """Generate the active forge activity SVG or preserve its last valid asset."""
+    stem = f"{PROVIDER.key}-activity"
+    component = f"{PROVIDER.display_name} activity card"
     if snapshot is None or not snapshot.weeks:
         return write_svg_with_fallback(
-            "github-activity",
+            stem,
             lambda style: "",
             source_available=False,
             health=health,
-            component="GitHub activity card",
+            component=component,
             active_assets=active_assets,
         )
     return write_svg_with_fallback(
-        "github-activity",
-        lambda style: build_activity_svg(snapshot, style=style),
+        stem,
+        lambda style: build_activity_svg(
+            snapshot, forge_name=PROVIDER.display_name, style=style
+        ),
         source_available=True,
         health=health,
-        component="GitHub activity card",
+        component=component,
         active_assets=active_assets,
     )
+
 
 def render_section_lead(text: str) -> str:
     """Render ``section-lead``: short centered semibold human-facing copy.
@@ -1704,55 +1720,46 @@ def render_section_lead(text: str) -> str:
     Keep this visually equivalent to SVG ``card-title`` rather than turning it
     into a second section heading. Alignment is supplied by the parent block.
     """
-    return f'<strong>{html.escape(text)}</strong>'
+    return f"<strong>{html.escape(text)}</strong>"
 
 
-def build_community_block(followers: list[JsonObject] | None) -> str:
-    """Render centered, clickable GitHub follower badges in deterministic rows."""
-    if not followers:
+def build_community_block(community: CommunitySnapshot | None) -> str:
+    """Render centered, clickable forge community badges in deterministic rows."""
+    if community is None:
         return ""
 
+    summary = community.summary
     rows: list[str] = [
         '<p align="center">',
         f'  {render_section_lead("I thank all my followers")}<br><br>',
-        f'  <a href="https://github.com/{USERNAME}?tab=followers">'
-        f'<img src="https://img.shields.io/github/followers/{USERNAME}'
-        f'?style=for-the-badge&amp;logo=github&amp;logoColor=white'
-        f'&amp;label=FOLLOWERS&amp;labelColor={PROFILE_COLOR}&amp;color={PROFILE_COLOR}" '
-        f'alt="{USERNAME} followers"></a>',
-        '</p>',
+        (
+            f'  <a href="{html.escape(summary.url, quote=True)}">'
+            + f'<img src="{html.escape(summary.image_url, quote=True)}" '
+            + f'alt="{html.escape(summary.alt, quote=True)}"></a>'
+        ),
+        "</p>",
     ]
 
     badges_per_row = 4
-    for offset in range(0, len(followers), badges_per_row):
+    for offset in range(0, len(community.followers), badges_per_row):
         badge_row: list[str] = []
-        for follower in followers[offset : offset + badges_per_row]:
-            login = str(follower.get("login") or "").strip()
-            if not login:
-                continue
-            escaped_login = html.escape(login, quote=True)
-            encoded_label = escaped_login
-            profile_url = f"https://github.com/{login}"
-            badge_url = (
-                f"https://img.shields.io/github/followers/{login}"
-                f"?style=for-the-badge&amp;logo=github&amp;logoColor=white"
-                f"&amp;label={encoded_label}&amp;labelColor={PROFILE_COLOR}"
-                f"&amp;color={PROFILE_COLOR}"
-            )
+        for follower in community.followers[offset : offset + badges_per_row]:
             badge_row.append(
-                f'<a href="{profile_url}">'
-                f'<img src="{badge_url}" alt="{escaped_login} followers"></a>'
+                f'<a href="{html.escape(follower.url, quote=True)}">'
+                f'<img src="{html.escape(follower.image_url, quote=True)}" '
+                f'alt="{html.escape(follower.alt, quote=True)}"></a>'
             )
         if badge_row:
             rows.extend(
                 [
                     '<p align="center">',
                     "  " + "\n  ".join(badge_row),
-                    '</p>',
+                    "</p>",
                 ]
             )
 
     return "\n".join(rows)
+
 
 def load_profile_config(health: HealthReport) -> JsonObject:
     """Load optional professional-profile data from the source TOML file."""
@@ -1760,7 +1767,7 @@ def load_profile_config(health: HealthReport) -> JsonObject:
         return {}
     try:
         return tomllib.loads(CONFIG.read_text(encoding="utf-8"))
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         health.add("Profile configuration", exc)
         return {}
 
@@ -1791,7 +1798,7 @@ def build_compact_link_card_svg(
     divider_y = 52
     content = (
         f'<text class="card-title" x="{width / 2:.1f}" y="34" text-anchor="middle">'
-        f'{svg_escape(title)}</text>'
+        f"{svg_escape(title)}</text>"
         + svg_horizontal_divider(
             0,
             divider_y,
@@ -1835,20 +1842,20 @@ def build_practice_progress_card_svg(
     fill_width = track_width * clamped / 100.0
     content = (
         f'<text class="card-title" x="{center_x:.1f}" y="28" text-anchor="middle">'
-        f'{svg_escape(title)}</text>'
+        f"{svg_escape(title)}</text>"
         f'<text class="card-description" x="{center_x:.1f}" y="48" text-anchor="middle">'
-        f'{svg_escape(subtitle)}</text>'
+        f"{svg_escape(subtitle)}</text>"
         + svg_horizontal_divider(
             0, 61, width, opacity=style.divider_opacity, inset_ratio=0.18
         )
         + f'<text class="status-value" x="{center_x:.1f}" y="88" text-anchor="middle">'
-        f'{svg_escape(status)}</text>'
+        f"{svg_escape(status)}</text>"
         f'<rect x="{track_x:.1f}" y="108" width="{track_width:.1f}" height="7" rx="3.5" '
         f'fill="#{style.track_color}" fill-opacity="0.72"/>'
         f'<rect x="{track_x:.1f}" y="108" width="{fill_width:.1f}" height="7" rx="3.5" '
         f'fill="#{PROFILE_COLOR}" fill-opacity="0.92"/>'
         f'<text class="meta" x="{center_x:.1f}" y="137" text-anchor="middle">'
-        f'{svg_escape(progress_label)}</text>'
+        f"{svg_escape(progress_label)}</text>"
     )
     return svg_card_document(
         width=width,
@@ -1896,9 +1903,9 @@ def build_hackerone_research_card_svg(
     center_x = width / 2
     header = (
         f'<text class="card-title" x="{center_x:.1f}" y="28" text-anchor="middle">'
-        'HACKERONE</text>'
+        "HACKERONE</text>"
         f'<text class="card-description" x="{center_x:.1f}" y="48" text-anchor="middle">'
-        'Security Research · Disclosures</text>'
+        "Security Research · Disclosures</text>"
         + svg_horizontal_divider(
             0, 61, width, opacity=style.divider_opacity, inset_ratio=0.18
         )
@@ -1924,11 +1931,11 @@ def build_hackerone_research_card_svg(
             )
         blocks.append(
             f'<text class="metric-value" x="{x:.1f}" y="104" text-anchor="middle">'
-            f'{svg_escape(value)}</text>'
+            f"{svg_escape(value)}</text>"
         )
         blocks.append(
             f'<text class="metric-label" x="{x:.1f}" y="127" text-anchor="middle">'
-            f'{svg_escape(label)}</text>'
+            f"{svg_escape(label)}</text>"
         )
 
     return svg_card_document(
@@ -1945,7 +1952,7 @@ def hackerone_disclosure_stem(disclosure: HackerOneDisclosure) -> str:
     safe_id = SLUG_SEPARATOR_RE.sub("-", disclosure.report_id.casefold()).strip("-")
     if safe_id:
         return f"security-research-hackerone-disclosure-{safe_id[:36]}"
-    digest = hashlib.sha256(disclosure.url.encode("utf-8")).hexdigest()[:10]
+    digest = hashlib.sha256(disclosure.url.encode()).hexdigest()[:10]
     return f"security-research-hackerone-disclosure-{digest}"
 
 
@@ -1975,8 +1982,10 @@ def build_security_research_evidence_card_svg(
         source_attrs = ' textLength="176" lengthAdjust="spacingAndGlyphs"'
 
     content: list[str] = [
-        f'<text class="card-title" x="{center_x:.1f}" y="28" '
-        f'text-anchor="middle"{source_attrs}>{svg_escape(source_label)}</text>',
+        (
+            f'<text class="card-title" x="{center_x:.1f}" y="28" '
+            + f'text-anchor="middle"{source_attrs}>{svg_escape(source_label)}</text>'
+        ),
         svg_horizontal_divider(
             0, 43, width, opacity=style.divider_opacity, inset_ratio=0.14
         ),
@@ -1987,7 +1996,7 @@ def build_security_research_evidence_card_svg(
         content.append(
             f'<text class="card-description" x="{center_x:.1f}" '
             f'y="{description_start_y + (index * 18)}" text-anchor="middle">'
-            f'{svg_escape(line)}</text>'
+            f"{svg_escape(line)}</text>"
         )
 
     meta_lines = [re.sub(r"\s+", " ", line).strip() for line in metadata if line]
@@ -2001,7 +2010,7 @@ def build_security_research_evidence_card_svg(
             content.append(
                 f'<text class="meta" x="{center_x:.1f}" '
                 f'y="{meta_start_y + (index * 17)}" text-anchor="middle"{meta_attrs}>'
-                f'{svg_escape(line)}</text>'
+                f"{svg_escape(line)}</text>"
             )
 
     return svg_card_document(
@@ -2094,13 +2103,12 @@ def centered_inline_cards(cards: list[str]) -> str:
     return render_centered_paragraph(cards)
 
 
-
 def _practice_progress_label(
     key: str,
     snapshot: HackTheBoxSnapshot | CyberDefendersSnapshot,
 ) -> str:
     if key == "hack_the_box":
-        pct = int(round(snapshot.progress))
+        pct = round(snapshot.progress)
         next_rank = getattr(snapshot, "next_rank", "")
         return f"{pct}% to {next_rank}" if next_rank else f"{pct}% rank progress"
     progress_text = f"{snapshot.progress:.1f}".rstrip("0").rstrip(".")
@@ -2139,11 +2147,7 @@ def _practice_platform_card(
     stem = f"security-practice-{key.replace('_', '-')}"
     path = safe_svg_card(
         stem,
-        lambda style,
-        title=title,
-        subtitle=subtitle,
-        snapshot=snapshot,
-        progress_label=progress_label: (
+        lambda style, title=title, subtitle=subtitle, snapshot=snapshot, progress_label=progress_label: (
             build_practice_progress_card_svg(
                 title,
                 subtitle,
@@ -2221,8 +2225,6 @@ def build_security_practice_content(
         if card:
             cards.append(card)
     return centered_inline_cards(cards)
-
-
 
 
 def _remove_generated_assets(stem: str) -> None:
@@ -2344,9 +2346,9 @@ def _manual_disclosure_card(
     if data is None:
         return ""
     source, title, disclosure_url, metadata = data
-    digest = hashlib.sha256(
-        f"{source}|{title}|{disclosure_url}".encode("utf-8")
-    ).hexdigest()[:10]
+    digest = hashlib.sha256(f"{source}|{title}|{disclosure_url}".encode()).hexdigest()[
+        :10
+    ]
     path = safe_svg_card(
         f"security-research-disclosure-{digest}",
         lambda style, source=source, title=title, metadata=metadata: build_security_research_evidence_card_svg(
@@ -2464,8 +2466,6 @@ def build_security_research_content(
     return "\n\n".join(parts)
 
 
-
-
 def _credential_year(value: str) -> str:
     if not value:
         return ""
@@ -2503,8 +2503,6 @@ def credential_date_label(credential: JsonObject, health: HealthReport) -> str:
         if label:
             return label
     return "Verified credential"
-
-
 
 
 def _certification_card(
@@ -2572,8 +2570,6 @@ def build_certifications_content(
     return centered_inline_cards(cards)
 
 
-
-
 BLOG_FEED_MAX_BYTES = 2 * 1024 * 1024
 BLOG_POST_LIMIT = 4
 
@@ -2635,20 +2631,21 @@ def _atom_posts(root: ET.Element, remaining: int) -> list[tuple[str, str]]:
     return posts
 
 
-def fetch_blog_posts(feed_url: str, health: HealthReport) -> list[tuple[str, str]] | None:
+def fetch_blog_posts(
+    feed_url: str, health: HealthReport
+) -> list[tuple[str, str]] | None:
     """Fetch up to four RSS/Atom posts; None means source failure, [] means empty."""
     if not feed_url:
         return []
     try:
         root = _read_blog_feed(feed_url)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         health.add("Blog feed", exc)
         return None
     posts = _rss_posts(root)
     if len(posts) < BLOG_POST_LIMIT:
         posts.extend(_atom_posts(root, BLOG_POST_LIMIT - len(posts)))
     return posts[:BLOG_POST_LIMIT]
-
 
 
 def build_blog_content(posts: list[tuple[str, str]] | None) -> str:
@@ -2659,6 +2656,7 @@ def build_blog_content(posts: list[tuple[str, str]] | None) -> str:
         for title, url in posts[:4]
     ]
     return render_centered_paragraph(links, separator="<br>\n  ")
+
 
 def build_contact_content(
     *,
@@ -2690,9 +2688,10 @@ def build_contact_content(
         badges.append(
             f'<a href="{html.escape(target, quote=True)}">'
             f'<img src="{html.escape(badge_url, quote=True)}" alt="{html.escape(label, quote=True)}">'
-            '</a>'
+            "</a>"
         )
     return render_centered_paragraph(badges)
+
 
 def extract_section_content(text: str, key: str) -> str:
     """Read the last successfully rendered content of one canonical section."""
@@ -2766,11 +2765,11 @@ def render_license_footer() -> str:
     """
     return (
         '<p align="center">\n'
-        '  <sub>Code &amp; reusable design licensed under '
-        '<strong>EUPL-1.2-or-later</strong> &middot; See '
+        "  <sub>Code &amp; reusable design licensed under "
+        "<strong>EUPL-1.2-or-later</strong> &middot; See "
         '<a href="./LICENSE">LICENSE</a> &amp; '
         '<a href="./NOTICE">NOTICE</a></sub>\n'
-        '</p>'
+        "</p>"
     )
 
 
@@ -2792,6 +2791,7 @@ def assemble_sections(sections: list[Section], *, footer: str = "") -> str:
     if footer.strip():
         blocks.append(footer.strip())
     return "\n\n".join(blocks)
+
 
 def build_development_workflow_svg(*, style: SvgStyle) -> str:
     """Render the profile's development and publication workflow."""
@@ -2821,7 +2821,7 @@ def build_development_workflow_svg(*, style: SvgStyle) -> str:
             svg_card_frame(x, y, node_width, main_card_height, style=style)
             + f'<text class="card-title" x="{x + node_width / 2:.1f}" y="{title_y:.1f}" '
             'text-anchor="middle">'
-            f'{svg_escape(title)}</text>'
+            f"{svg_escape(title)}</text>"
             + svg_horizontal_divider(
                 x,
                 divider_y,
@@ -2830,7 +2830,7 @@ def build_development_workflow_svg(*, style: SvgStyle) -> str:
             )
             + f'<text class="card-description" x="{x + node_width / 2:.1f}" y="{footer_y:.1f}" '
             'text-anchor="middle">'
-            f'{svg_escape(footer)}</text>'
+            f"{svg_escape(footer)}</text>"
         )
 
     def secondary_card(
@@ -2847,7 +2847,7 @@ def build_development_workflow_svg(*, style: SvgStyle) -> str:
             svg_card_frame(x, y, node_width, secondary_card_height, style=style)
             + f'<text class="card-title" x="{x + node_width / 2:.1f}" y="{title_y:.1f}" '
             'text-anchor="middle">'
-            f'{svg_escape(title)}</text>'
+            f"{svg_escape(title)}</text>"
             + svg_horizontal_divider(
                 x,
                 divider_y,
@@ -2856,7 +2856,7 @@ def build_development_workflow_svg(*, style: SvgStyle) -> str:
             )
             + f'<text class="card-description" x="{x + node_width / 2:.1f}" y="{footer_y:.1f}" '
             'text-anchor="middle">'
-            f'{svg_escape(footer)}</text>'
+            f"{svg_escape(footer)}</text>"
         )
 
     def connector_label_width(label: str) -> float:
@@ -2882,7 +2882,7 @@ def build_development_workflow_svg(*, style: SvgStyle) -> str:
             f'stroke-opacity="{opacity:.2f}"/>'
             f'<text class="connector-label" x="{x + label_width / 2:.1f}" y="{y + 18}" '
             f'fill-opacity="{min(opacity + 0.12, 1.0):.2f}" text-anchor="middle">'
-            f'{svg_escape(label)}</text>'
+            f"{svg_escape(label)}</text>"
         )
 
     # The primary workflow forms one compact vertical column aligned with the
@@ -2951,17 +2951,19 @@ def build_development_workflow_svg(*, style: SvgStyle) -> str:
     publish_gap_left = main_x + main_w
     publish_gap_right = secondary_x
     website_label_width = connector_label_width("PUBLISH WEBSITE")
-    website_label_x = publish_gap_left + (
-        publish_gap_right - publish_gap_left - website_label_width
-    ) / 2
+    website_label_x = (
+        publish_gap_left
+        + (publish_gap_right - publish_gap_left - website_label_width) / 2
+    )
     website_line_y = gitlab_y + main_card_height / 2
     website_label_y = int(
         website_line_y - CONNECTOR_LABEL_HEIGHT - PUBLISH_LABEL_LINE_GAP
     )
     images_label_width = connector_label_width("PUBLISH IMAGES")
-    images_label_x = publish_gap_left + (
-        publish_gap_right - publish_gap_left - images_label_width
-    ) / 2
+    images_label_x = (
+        publish_gap_left
+        + (publish_gap_right - publish_gap_left - images_label_width) / 2
+    )
     images_line_y = github_y + main_card_height / 2
     images_label_y = int(
         images_line_y - CONNECTOR_LABEL_HEIGHT - PUBLISH_LABEL_LINE_GAP
@@ -3035,12 +3037,12 @@ def build_development_workflow_svg(*, style: SvgStyle) -> str:
         '<marker id="arrowMain" viewBox="0 0 10 10" refX="8.5" refY="5" '
         'markerWidth="6" markerHeight="6" orient="auto">'
         f'<path d="M0 0 L10 5 L0 10 Z" fill="#{PROFILE_COLOR}" fill-opacity="0.92"/>'
-        '</marker>'
+        "</marker>"
         '<marker id="arrowSecondary" viewBox="0 0 10 10" refX="8.5" refY="5" '
         'markerWidth="6" markerHeight="6" orient="auto">'
         f'<path d="M0 0 L10 5 L0 10 Z" fill="#{PROFILE_COLOR}" '
         f'fill-opacity="{secondary_opacity:.2f}"/>'
-        '</marker>'
+        "</marker>"
     )
 
     return svg_card_document(
@@ -3066,8 +3068,9 @@ def build_picture_block(
     return (
         '<p align="center">\n'
         f'  <img src="{asset_url}" alt="{escaped_alt}"{width_attr}>\n'
-        '</p>'
+        "</p>"
     )
+
 
 def prune_generated_assets(active_assets: set[str]) -> None:
     """Remove every generated artifact not used by the current rendered README."""
@@ -3085,7 +3088,6 @@ def verify_generated_asset_references(text: str) -> None:
         raise RuntimeError(
             "README references missing generated assets: " + ", ".join(missing)
         )
-
 
 
 def _published_readme() -> tuple[bool, str]:
@@ -3135,6 +3137,7 @@ def _build_profile_section(
     avatar_block = build_avatar_block(
         avatar_url,
         display_name,
+        source_name=PROVIDER.display_name,
         health=health,
         active_assets=active_assets,
     )
@@ -3169,7 +3172,7 @@ def _language_card_path(
     if source_available and not languages:
         return None
     return safe_svg_card(
-        "languages",
+        PROVIDER.language_asset_stem,
         lambda style: build_languages_svg(languages, style=style),
         health=health,
         component="Most Used Languages card",
@@ -3179,46 +3182,42 @@ def _language_card_path(
 
 
 def _stats_card_path(
-    repos: list[JsonObject] | None,
-    contribution_snapshot: ContributionSnapshot | None,
-    merged_pull_requests: int | None,
+    snapshot: ForgeStatsSnapshot | None,
     *,
     health: HealthReport,
     active_assets: set[str],
 ) -> Path | None:
-    if (
-        repos is None
-        or contribution_snapshot is None
-        or merged_pull_requests is None
-    ):
+    stem = f"{PROVIDER.key}-stats"
+    component = f"{PROVIDER.display_name} Stats card"
+    if snapshot is None:
         return safe_svg_card(
-            "github-stats",
+            stem,
             lambda style: "",
             health=health,
-            component="GitHub Stats card",
+            component=component,
             active_assets=active_assets,
             source_available=False,
         )
-    snapshot = PROVIDER.stats_snapshot(
-        repos, contribution_snapshot, merged_pull_requests
-    )
     return safe_svg_card(
-        "github-stats",
+        stem,
         lambda style: build_stats_svg(snapshot, style=style),
         health=health,
-        component="GitHub Stats card",
+        component=component,
         active_assets=active_assets,
     )
 
 
 def _featured_projects_content(
     published: str,
-    pinned: list[JsonObject] | None,
+    pinned: list[FeaturedProject] | None,
     *,
+    published_forge: str | None,
     health: HealthReport,
     active_assets: set[str],
 ) -> str:
     if pinned is None:
+        if published_forge != PROVIDER.key:
+            return ""
         cached = extract_section_content(published, "FEATURED-PROJECTS")
         return preserve_cached_generated_assets(
             cached,
@@ -3299,13 +3298,28 @@ def _cached_blog_content(
     return extract_section_content(published, "LATEST-BLOG-POSTS") or content
 
 
+def _published_forge(text: str) -> str | None:
+    """Detect which forge owns forge-specific sections in a published snapshot."""
+    for forge in ("github", "gitlab"):
+        marker = f"<!-- SECTION:{forge.upper()}-STATS:START -->"
+        if marker in text:
+            return forge
+    return None
+
+
 def _cached_community_content(
     published: str,
-    followers: list[JsonObject] | None,
+    community: CommunitySnapshot | None,
     content: str,
+    *,
+    published_forge: str | None,
 ) -> str:
-    if followers is not None:
+    if not PROVIDER.supports_community:
+        return ""
+    if community is not None:
         return content
+    if published_forge != PROVIDER.key:
+        return ""
     cached = extract_section_content(published, "COMMUNITY")
     if "temporarily unavailable" in cached.lower():
         cached = ""
@@ -3356,16 +3370,19 @@ def _write_rendered_readme(
     README.write_text(text, encoding="utf-8")
 
 
-def _summary_count(value: JsonArray | JsonObject | None, available: bool) -> int | str:
+def _summary_count(value: object | None, available: bool) -> int | str:
     if not available or value is None:
         return "cached"
-    return len(value)
+    if isinstance(value, (list, dict, tuple, set)):
+        return len(cast(Sized, value))
+    return 0
 
 
 def main(health: HealthReport) -> None:
     ASSET_DIR.mkdir(parents=True, exist_ok=True)
     template = TEMPLATE.read_text(encoding="utf-8")
     published_exists, published = _published_readme()
+    published_forge = _published_forge(published)
     config = load_profile_config(health)
     active_assets: set[str] = set()
 
@@ -3378,9 +3395,19 @@ def main(health: HealthReport) -> None:
     website_url = profile.website_url
     social_accounts = PROVIDER.social_accounts(health)
     website_url = website_url or current_reference(published, "website_url")
-    gitlab_username = derive_gitlab_username(published, social_accounts)
-    github_url = f"https://github.com/{USERNAME}"
-    gitlab_url = f"https://gitlab.com/{gitlab_username}"
+    github_url = _forge_profile_url(
+        "github",
+        published=published,
+        social_accounts=social_accounts,
+        active_profile_url=profile.profile_url,
+    )
+    gitlab_url = _forge_profile_url(
+        "gitlab",
+        published=published,
+        social_accounts=social_accounts,
+        active_profile_url=profile.profile_url,
+    )
+    gitlab_username = _profile_username(gitlab_url, forge="gitlab", fallback=USERNAME)
     gpg_url = f"https://gitlab.com/{gitlab_username}.gpg"
     blog_feed_url, blog_config_valid = _blog_feed_settings(config, health)
 
@@ -3407,17 +3434,26 @@ def main(health: HealthReport) -> None:
         health=health,
         active_assets=active_assets,
     )
-    contribution_snapshot = PROVIDER.contribution_snapshot(health)
-    merged_pull_requests = PROVIDER.merged_request_count(health)
+
+    contribution_snapshot = (
+        PROVIDER.contribution_snapshot(health) if PROVIDER.supports_activity else None
+    )
+    stats_snapshot = (
+        PROVIDER.stats_snapshot(repos, contribution_snapshot, health)
+        if repos is not None
+        else None
+    )
     stats_path = _stats_card_path(
-        repos,
-        contribution_snapshot,
-        merged_pull_requests,
+        stats_snapshot,
         health=health,
         active_assets=active_assets,
     )
-    activity_path = write_activity_svg(
-        contribution_snapshot, health=health, active_assets=active_assets
+    activity_path = (
+        write_activity_svg(
+            contribution_snapshot, health=health, active_assets=active_assets
+        )
+        if PROVIDER.supports_activity
+        else None
     )
     workflow_path = safe_svg_card(
         "development-workflow",
@@ -3427,12 +3463,16 @@ def main(health: HealthReport) -> None:
         active_assets=active_assets,
     )
 
-    pinned = PROVIDER.featured_projects(health)
+    featured_projects = PROVIDER.featured_projects(health)
     featured = _featured_projects_content(
-        published, pinned, health=health, active_assets=active_assets
+        published,
+        featured_projects,
+        published_forge=published_forge,
+        health=health,
+        active_assets=active_assets,
     )
-    followers = PROVIDER.followers(health)
-    community = build_community_block(followers)
+    community_snapshot = PROVIDER.community(health)
+    community = build_community_block(community_snapshot)
     blog_posts = fetch_blog_posts(blog_feed_url, health) if blog_config_valid else None
     blog = build_blog_content(blog_posts)
     practice = _practice_content(config, health=health, active_assets=active_assets)
@@ -3442,6 +3482,14 @@ def main(health: HealthReport) -> None:
     certifications = build_certifications_content(
         config, health=health, active_assets=active_assets
     )
+
+    forge_stats_parts = [_picture_block(stats_path, f"{PROVIDER.display_name} Stats")]
+    if activity_path:
+        forge_stats_parts.append(
+            _picture_block(
+                activity_path, f"{PROVIDER.display_name} Activity · 365 Days"
+            )
+        )
 
     sections = [
         profile_section,
@@ -3461,16 +3509,18 @@ def main(health: HealthReport) -> None:
             (_picture_block(language_path, "Most Used Languages"),),
         ),
         Section(
-            "GITHUB-STATS",
-            "GITHUB STATS",
-            (
-                _picture_block(stats_path, "GitHub Stats"),
-                _picture_block(activity_path, "GitHub Activity · 365 Days"),
-            ),
+            f"{PROVIDER.key.upper()}-STATS",
+            f"{PROVIDER.display_name.upper()} STATS",
+            tuple(forge_stats_parts),
         ),
     ]
     blog = _cached_blog_content(published, blog_posts, blog)
-    community = _cached_community_content(published, followers, community)
+    community = _cached_community_content(
+        published,
+        community_snapshot,
+        community,
+        published_forge=published_forge,
+    )
     sections.append(Section("LATEST-BLOG-POSTS", "LATEST BLOG POSTS", (blog,)))
     sections.append(Section("COMMUNITY", "COMMUNITY", (community,)))
 
@@ -3478,14 +3528,20 @@ def main(health: HealthReport) -> None:
         website_url, LINKEDIN_URL, github_url, gitlab_url, gpg_url
     )
     _write_rendered_readme(template, sections, references, active_assets)
+    if community_snapshot is not None:
+        follower_count: int | str = community_snapshot.follower_count
+    elif PROVIDER.supports_community:
+        follower_count = "cached"
+    else:
+        follower_count = "not supported"
     print(
         f"Updated README for {USERNAME}: "
-        f"{_summary_count(followers, followers is not None)} followers, "
+        f"{follower_count} followers, "
         f"{_summary_count(repos, repos is not None)} public repositories, "
-        f"{_summary_count(pinned, pinned is not None)} pinned projects, "
+        f"{_summary_count(featured_projects, featured_projects is not None)} "
+        f"{PROVIDER.featured_summary_label}, "
         f"{_summary_count(languages, languages_complete)} languages."
     )
-
 
 
 if __name__ == "__main__":

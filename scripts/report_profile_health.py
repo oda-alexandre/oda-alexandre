@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2024-2026 ODA Alexandre
 # SPDX-License-Identifier: EUPL-1.2+
 
@@ -76,7 +75,7 @@ def api(
     *,
     allow_status: tuple[int, ...] = (),
 ) -> tuple[int, JsonContainer]:
-    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    data = json.dumps(payload).encode() if payload is not None else None
     request = urllib.request.Request(
         API_ROOT + path,
         data=data,
@@ -227,7 +226,7 @@ def incident_title(incidents: list[Incident]) -> str:
 def incident_fingerprint(incidents: list[Incident]) -> str:
     """Stable identity for the current incident set, used to avoid noisy comments."""
     normalized = json.dumps(incidents, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha256(normalized.encode()).hexdigest()[:16]
 
 
 def body_fingerprint(body: object) -> str:
@@ -295,7 +294,7 @@ def create_issue(title: str, body: str) -> None:
 def _issue_number(issue: JsonObject) -> int:
     number = issue.get("number")
     if isinstance(number, bool) or not isinstance(number, int):
-        raise RuntimeError("Managed Profile Health issue is missing a numeric number")
+        raise TypeError("Managed Profile Health issue is missing a numeric number")
     return number
 
 

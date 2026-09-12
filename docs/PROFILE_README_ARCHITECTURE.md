@@ -141,18 +141,26 @@ card roles while reusing the existing shared primitives:
 
 Builder: `build_featured_project_card_svg()`
 
-Source of truth: GitHub `pinnedItems`, in GitHub pin order.
+The active forge provider owns project selection and normalizes it into the same
+card model:
+
+- GitHub uses profile `pinnedItems` in the configured pin order.
+- GitLab prefers public personal projects carrying the `profile-featured` topic.
+  When none are tagged, it falls back deterministically to public personal
+  non-fork projects ordered by stars, recent activity, then name.
 
 Display only information that helps a reviewer understand the project quickly:
 
-- repository name (`card-title`)
-- repository description (`card-description`)
+- project name (`card-title`)
+- project description (`card-description`)
 - primary language + stars (`meta`)
-- `CONTRIBUTED` only when the pinned repository is owned by another account
+- `CONTRIBUTED` only when the normalized project represents work in another
+  account/namespace
 
-Do not add topics, forks, timestamps, or custom project lists unless the product
-requirements explicitly change. Pin/unpin/reorder on GitHub should be sufficient
-to update this section.
+Do not render topics, forks, or timestamps merely because a forge API exposes
+them. GitHub pinning and the GitLab `profile-featured` topic are selection
+mechanisms, not card metadata, and no second hand-maintained project list belongs
+in repository configuration.
 
 ### C. Certification card
 
@@ -177,24 +185,35 @@ Time display rule:
 
 The source model may retain both dates for sorting/future use.
 
-### D. Professional GitHub stats card
+### D. Professional forge stats card
 
 Builder: `build_stats_svg()`
 
-This card measures collaboration/impact, not account gamification.
-Current intended metrics:
+This card measures collaboration/impact, not account gamification. The provider
+selects forge-native metrics instead of forcing GitHub concepts onto GitLab.
+
+GitHub metrics:
 
 - Merged PRs · 365d
 - Code reviews · 365d
 - Repos contributed · 365d
 - Stars earned
 
-Do not reintroduce followers, public repo count, current streak, longest streak,
-or a duplicate contribution count here:
+GitLab metrics:
 
-- followers belong to `COMMUNITY`
-- contribution rhythm belongs to the Activity heatmap
-- repo count measures quantity more than impact
+- Merged MRs · 365d
+- Projects contributed · 1y
+- Stars earned
+- Forks earned
+
+Do not add followers, public repository/project count, current streak, longest
+streak, or a duplicate contribution count here:
+
+- followers belong to `COMMUNITY` when the active provider can retrieve them
+  through a supported contract
+- contribution rhythm belongs to an Activity visualization only when the forge
+  exposes a supported contribution-calendar API
+- repository/project count measures quantity more than impact
 - streaks are intentionally excluded from the professional signal
 
 A numeric zero is valid data and should remain visible. Missing/unavailable data
@@ -248,12 +267,39 @@ external-platform adapters. Forge API access is isolated under `scripts/provider
 
 - `base.py` defines forge-neutral snapshots and the provider contract;
 - `github.py` owns GitHub API calls and normalizes them into that contract;
-- `PROFILE_FORGE` selects the provider and defaults to `github`; unsupported values
-  fail closed rather than silently falling back to a different data source.
+- `gitlab.py` owns GitLab REST API calls and normalizes them into the same
+  renderer contract. Profile, project, language and statistics data use public
+  endpoints only; the provider does not require a persistent GitLab access token;
+- `PROFILE_FORGE` selects `github` or `gitlab` and defaults to `github`; unsupported
+  values fail closed rather than silently falling back to a different data source.
 
-The GitHub workflow sets `PROFILE_FORGE=github` explicitly. The provider
-boundary must preserve the rendered GitHub README, generated assets, fallback
-semantics, and Profile Health component names.
+The GitHub workflow sets `PROFILE_FORGE=github` explicitly. GitLab provider support
+is preparatory until a dedicated GitLab publication pipeline is enabled; adding the
+provider does not change the current branch authority or mirroring direction. The
+provider boundary must preserve the rendered GitHub README, generated assets,
+fallback semantics, and Profile Health component names.
+
+GitLab anonymous user lookup supplies the basic public identity needed for a
+functional profile (name, avatar and profile URL). Richer documented user detail
+such as biography, website, linked accounts and follower data requires signed-in
+Users API access. `CI_JOB_TOKEN` does not support that API family, so the provider
+does not introduce a persistent PAT merely for presentation data. Optional fields
+are omitted or recovered from an existing repository reference where the renderer
+already defines that fallback; absence is not a health incident.
+
+GitLab CI should prefer predefined variables such as `CI_API_V4_URL` and
+`CI_PROJECT_ROOT_NAMESPACE`. The native `CI_JOB_TOKEN` is reserved for CI actions
+whose endpoints explicitly support it, notably publication Git pushes once that
+project setting is enabled. It must not be treated as a general-purpose GitLab API
+token.
+
+Forge-specific cached content must never cross publication targets. Stats and
+language assets use forge-specific stems where necessary, and FEATURED PROJECTS /
+COMMUNITY cache reuse is allowed only when the existing README identifies the same
+forge through its stats section marker. GitLab activity is intentionally omitted:
+GitLab does not currently expose its profile contribution calendar through a
+supported public API, so unsupported data is not approximated or reported as an
+incident.
 
 Important source-of-truth rules:
 
@@ -261,7 +307,11 @@ Important source-of-truth rules:
   are repository-local static SVG assets under `assets/badges/contact/`. They are
   intentionally not regenerated by the workflow and must keep the established
   Shields-style appearance. Only the surrounding `<a href>` destinations change.
-- `FEATURED PROJECTS`: GitHub pinned repositories, not a manual README list.
+- `FEATURED PROJECTS`: GitHub uses profile pinned repositories in their configured
+  order. GitLab first selects public personal projects carrying the
+  `profile-featured` topic; if none are tagged, it deterministically falls back to
+  the most relevant public personal projects by stars and recent activity. No
+  second hand-maintained project list belongs in this file.
 - `SECURITY PRACTICE`: `profile.config.toml`; only distinct platforms with a
   professional public profile. Platform credentials/tokens belong only in GitHub
   Actions secrets, never in TOML or generated content. HTB uses `HTB_TOKEN`.
@@ -281,9 +331,16 @@ Important source-of-truth rules:
   a network request, do not preserve stale blog content, and do not create a
   Profile Health incident. Once a valid HTTPS feed URL is configured, temporary
   source failures preserve the last canonical section content and are reported.
-- `COMMUNITY`: GitHub followers; avoid duplicating follower count in Stats. Its
-  follower badges remain dynamic Shields.io badges because follower counts and the
-  follower set change over time; do not vendor these as static source assets.
+- `MOST USED LANGUAGES`: GitHub aggregates language byte counts across public
+  owned non-fork repositories. GitLab exposes per-project language percentages, so
+  its provider aggregates those percentages with equal project weight instead of
+  pretending that GitLab supplies repository byte counts.
+- `COMMUNITY`: followers from the active forge; avoid duplicating follower count in
+  Stats. GitHub keeps its dynamic follower-count Shields.io badges. GitLab omits
+  COMMUNITY because follower and rich user-detail endpoints require signed-in user
+  access and are not available to `CI_JOB_TOKEN`; a persistent token is not added
+  solely for this presentation feature. Do not vendor changing community assets as
+  static source files.
 
 ## 5. Resilience and fallbacks
 

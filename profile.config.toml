@@ -1,7 +1,9 @@
 # Maintenance/design rules: see docs/PROFILE_README_ARCHITECTURE.md before adding fields or platforms.
 
-# FEATURED PROJECTS is fully automatic: repositories pinned on the GitHub profile
-# are fetched in profile order, so no project list is maintained in this file.
+# FEATURED PROJECTS is fully automatic and forge-owned. GitHub uses profile pins.
+# GitLab prefers public personal projects tagged `profile-featured` and otherwise
+# applies its deterministic public-project fallback. No project list is maintained
+# in this file.
 
 # Optional blog feed. Leave empty until the feed is intentionally published.
 # Empty means disabled: no network request and no Profile Health incident.
