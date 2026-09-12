@@ -9,11 +9,14 @@ import os
 
 from .base import ForgeProvider
 from .github import GitHubProvider
+from .gitlab import GitLabProvider
 
 
 def load_provider() -> ForgeProvider:
-    """Build the configured forge provider, defaulting to the current GitHub path."""
+    """Build the configured forge provider for the active publication target."""
     forge = (os.environ.get("PROFILE_FORGE", "github").strip() or "github").casefold()
     if forge == "github":
         return GitHubProvider.from_environment()
+    if forge == "gitlab":
+        return GitLabProvider.from_environment()
     raise SystemExit(f"Unsupported PROFILE_FORGE: {forge}")

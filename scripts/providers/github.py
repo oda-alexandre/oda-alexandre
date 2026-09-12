@@ -13,14 +13,19 @@ import urllib.request
 from urllib.parse import urlencode, urlparse
 
 from .base import (
+    CommunityBadge,
+    CommunitySnapshot,
     ContributionDay,
     ContributionSnapshot,
+    FeaturedProject,
+    ForgeMetric,
     ForgeStatsSnapshot,
     HealthReporter,
     JsonArray,
     JsonContainer,
     JsonObject,
     ProfileSnapshot,
+    SocialAccount,
     is_json_array,
     is_json_object,
 )
@@ -73,6 +78,10 @@ class GitHubProvider:
 
     key = "github"
     display_name = "GitHub"
+    supports_activity = True
+    supports_community = True
+    language_asset_stem = "languages"
+    featured_summary_label = "pinned projects"
 
     def __init__(self, username: str, token: str) -> None:
         self.username = username
@@ -102,7 +111,7 @@ class GitHubProvider:
             "User-Agent": f"{self.username}-profile-readme",
         }
         if payload is not None:
-            data = json.dumps(payload).encode("utf-8")
+            data = json.dumps(payload).encode()
             headers["Content-Type"] = JSON_MEDIA_TYPE
 
         request = urllib.request.Request(url, data=data, headers=headers)
@@ -140,17 +149,25 @@ class GitHubProvider:
             bio=bio,
             avatar_url=avatar_url,
             website_url=website_url,
+            profile_url=f"https://github.com/{self.username}",
         )
 
-    def social_accounts(self, health: HealthReporter) -> list[JsonObject]:
+    def social_accounts(self, health: HealthReporter) -> list[SocialAccount]:
         try:
             accounts = self._json(
                 f"https://api.github.com/users/{self.username}/social_accounts?per_page=100"
             )
             if not is_json_array(accounts):
                 raise RuntimeError("Unexpected social accounts API response")
-            return accounts
-        except Exception as exc:
+            return [
+                SocialAccount(
+                    provider=str(account.get("provider") or "").strip().casefold(),
+                    url=self._normalize_url(str(account.get("url") or "")),
+                )
+                for account in accounts
+                if is_json_object(account) and account.get("url")
+            ]
+        except Exception as exc:  # noqa: BLE001
             health.add("GitHub social accounts", exc)
             return []
 
@@ -172,11 +189,11 @@ class GitHubProvider:
     def repositories(self, health: HealthReporter) -> list[JsonObject] | None:
         try:
             return self._list_owned_public_repositories()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             health.add("GitHub repositories", exc)
             return None
 
-    def followers(self, health: HealthReporter) -> list[JsonObject] | None:
+    def _followers(self, health: HealthReporter) -> list[JsonObject] | None:
         followers: list[JsonObject] = []
         page = 1
         try:
@@ -191,13 +208,47 @@ class GitHubProvider:
                 if len(batch) < 100:
                     break
                 page += 1
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             health.add("GitHub followers", exc)
             return None
 
         return sorted(
             (follower for follower in followers if follower.get("login")),
             key=lambda follower: str(follower.get("login") or "").casefold(),
+        )
+
+    def community(self, health: HealthReporter) -> CommunitySnapshot | None:
+        followers = self._followers(health)
+        if followers is None:
+            return None
+
+        summary = CommunityBadge(
+            url=f"https://github.com/{self.username}?tab=followers",
+            image_url=(
+                f"https://img.shields.io/github/followers/{self.username}"
+                f"?style=for-the-badge&logo=github&logoColor=white"
+                f"&label=FOLLOWERS&labelColor=116466&color=116466"
+            ),
+            alt=f"{self.username} followers",
+        )
+        badges: list[CommunityBadge] = []
+        for follower in followers:
+            login = str(follower.get("login") or "").strip()
+            if not login:
+                continue
+            badges.append(
+                CommunityBadge(
+                    url=f"https://github.com/{login}",
+                    image_url=(
+                        f"https://img.shields.io/github/followers/{login}"
+                        f"?style=for-the-badge&logo=github&logoColor=white"
+                        f"&label={login}&labelColor=116466&color=116466"
+                    ),
+                    alt=f"{login} followers",
+                )
+            )
+        return CommunitySnapshot(
+            summary=summary, follower_count=len(followers), followers=tuple(badges)
         )
 
     @staticmethod
@@ -215,7 +266,7 @@ class GitHubProvider:
             if not is_json_object(languages):
                 raise RuntimeError("Unexpected languages API response")
             return languages
-        except Exception:
+        except Exception:  # noqa: BLE001
             return None
 
     @staticmethod
@@ -375,11 +426,11 @@ class GitHubProvider:
                 repositories_contributed=len(repository_names),
                 weeks=weeks,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             health.add("GitHub contributions", exc)
             return None
 
-    def merged_request_count(self, health: HealthReporter) -> int | None:
+    def _merged_request_count(self, health: HealthReporter) -> int | None:
         start, now = self._rolling_365_window()
         search_query = (
             f"author:{self.username} is:pr is:merged "
@@ -393,28 +444,46 @@ class GitHubProvider:
             if not is_json_object(result):
                 raise RuntimeError("Unexpected pull-request search response")
             return int(result.get("total_count") or 0)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             health.add("GitHub merged pull requests", exc)
             return None
 
-    @staticmethod
     def stats_snapshot(
+        self,
         repositories: list[JsonObject],
-        contributions: ContributionSnapshot,
-        merged_requests: int,
-    ) -> ForgeStatsSnapshot:
+        contributions: ContributionSnapshot | None,
+        health: HealthReporter,
+    ) -> ForgeStatsSnapshot | None:
+        if contributions is None:
+            return None
+        merged_requests = self._merged_request_count(health)
+        if merged_requests is None:
+            return None
         owned = [repository for repository in repositories if not repository.get("fork")]
         stars_earned = sum(
             int(repository.get("stargazers_count") or 0) for repository in owned
         )
         return ForgeStatsSnapshot(
-            merged_requests=merged_requests,
-            reviews=contributions.reviews,
-            repositories_contributed=contributions.repositories_contributed,
-            stars_earned=stars_earned,
+            metrics=(
+                ForgeMetric("Merged PRs", merged_requests, "· 365d"),
+                ForgeMetric("Code reviews", contributions.reviews, "· 365d"),
+                ForgeMetric(
+                    "Repos contributed",
+                    contributions.repositories_contributed,
+                    "· 365d",
+                ),
+                ForgeMetric("Stars earned", stars_earned),
+            ),
+            aria_label=(
+                "GitHub professional statistics: merged pull requests, code reviews, "
+                "repositories contributed to, and stars earned"
+            ),
         )
 
-    def featured_projects(self, health: HealthReporter) -> list[JsonObject] | None:
+    def featured_projects(
+        self,
+        health: HealthReporter,
+    ) -> list[FeaturedProject] | None:
         query = """
         query($login: String!) {
           user(login: $login) {
@@ -458,11 +527,43 @@ class GitHubProvider:
                 nodes = raw_nodes
             else:
                 raise RuntimeError("Unexpected GitHub pinnedItems nodes response")
-            return [
-                node
-                for node in nodes
-                if is_json_object(node) and node.get("name") and node.get("url")
-            ]
-        except Exception as exc:
+            projects: list[FeaturedProject] = []
+            for node in nodes:
+                if not is_json_object(node):
+                    continue
+                name = str(node.get("name") or "").strip()
+                url = str(node.get("url") or "").strip()
+                if not name or not url:
+                    continue
+                owner = node.get("owner")
+                owner_login = (
+                    str(owner.get("login") or "").strip()
+                    if is_json_object(owner)
+                    else ""
+                )
+                language = node.get("primaryLanguage")
+                primary_language = (
+                    str(language.get("name") or "").strip()
+                    if is_json_object(language)
+                    else ""
+                )
+                identity = str(node.get("nameWithOwner") or name).strip()
+                projects.append(
+                    FeaturedProject(
+                        identity=identity,
+                        name=name,
+                        url=url,
+                        description=str(node.get("description") or "").strip(),
+                        owner=owner_login,
+                        primary_language=primary_language,
+                        stars=int(node.get("stargazerCount") or 0),
+                        contributed=(
+                            bool(owner_login)
+                            and owner_login.casefold() != self.username.casefold()
+                        ),
+                    )
+                )
+            return projects
+        except Exception as exc:  # noqa: BLE001
             health.add("GitHub pinned repositories", exc)
             return None

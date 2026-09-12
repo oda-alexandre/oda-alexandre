@@ -31,6 +31,14 @@ class HealthReporter(Protocol):
 
 
 @dataclass(frozen=True)
+class SocialAccount:
+    """One normalized public social-profile destination exposed by a forge."""
+
+    provider: str
+    url: str
+
+
+@dataclass(frozen=True)
 class ProfileSnapshot:
     """Public identity fields needed by the forge-independent renderer."""
 
@@ -38,6 +46,39 @@ class ProfileSnapshot:
     bio: str
     avatar_url: str
     website_url: str
+    profile_url: str
+
+
+@dataclass(frozen=True)
+class FeaturedProject:
+    """Forge-neutral portfolio project rendered by the shared project card."""
+
+    identity: str
+    name: str
+    url: str
+    description: str
+    owner: str
+    primary_language: str
+    stars: int
+    contributed: bool
+
+
+@dataclass(frozen=True)
+class CommunityBadge:
+    """One linked image badge used by the forge-neutral COMMUNITY renderer."""
+
+    url: str
+    image_url: str
+    alt: str
+
+
+@dataclass(frozen=True)
+class CommunitySnapshot:
+    """Public follower presentation prepared by a forge provider."""
+
+    summary: CommunityBadge
+    follower_count: int
+    followers: tuple[CommunityBadge, ...]
 
 
 @dataclass(frozen=True)
@@ -52,7 +93,7 @@ class ContributionDay:
 
 @dataclass(frozen=True)
 class ContributionSnapshot:
-    """Rolling public contribution activity and collaboration metrics."""
+    """Rolling public contribution activity used by forge activity cards."""
 
     total: int
     reviews: int
@@ -61,13 +102,20 @@ class ContributionSnapshot:
 
 
 @dataclass(frozen=True)
-class ForgeStatsSnapshot:
-    """Professional forge signals displayed in the compact stats card."""
+class ForgeMetric:
+    """One compact professional metric displayed in a forge statistics card."""
 
-    merged_requests: int
-    reviews: int
-    repositories_contributed: int
-    stars_earned: int
+    label: str
+    value: int
+    period: str = ""
+
+
+@dataclass(frozen=True)
+class ForgeStatsSnapshot:
+    """Forge-specific professional signals normalized for the shared renderer."""
+
+    metrics: tuple[ForgeMetric, ...]
+    aria_label: str
 
 
 class ForgeProvider(Protocol):
@@ -76,10 +124,14 @@ class ForgeProvider(Protocol):
     key: str
     display_name: str
     username: str
+    supports_activity: bool
+    supports_community: bool
+    language_asset_stem: str
+    featured_summary_label: str
 
     def profile(self) -> ProfileSnapshot: ...
 
-    def social_accounts(self, health: HealthReporter) -> list[JsonObject]: ...
+    def social_accounts(self, health: HealthReporter) -> list[SocialAccount]: ...
 
     def repositories(self, health: HealthReporter) -> list[JsonObject] | None: ...
 
@@ -94,15 +146,16 @@ class ForgeProvider(Protocol):
         health: HealthReporter,
     ) -> ContributionSnapshot | None: ...
 
-    def merged_request_count(self, health: HealthReporter) -> int | None: ...
-
     def stats_snapshot(
         self,
         repositories: list[JsonObject],
-        contributions: ContributionSnapshot,
-        merged_requests: int,
-    ) -> ForgeStatsSnapshot: ...
+        contributions: ContributionSnapshot | None,
+        health: HealthReporter,
+    ) -> ForgeStatsSnapshot | None: ...
 
-    def featured_projects(self, health: HealthReporter) -> list[JsonObject] | None: ...
+    def featured_projects(
+        self,
+        health: HealthReporter,
+    ) -> list[FeaturedProject] | None: ...
 
-    def followers(self, health: HealthReporter) -> list[JsonObject] | None: ...
+    def community(self, health: HealthReporter) -> CommunitySnapshot | None: ...

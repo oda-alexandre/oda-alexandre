@@ -93,3 +93,4 @@
 !/scripts/providers/__init__.py
 !/scripts/providers/base.py
 !/scripts/providers/github.py
+!/scripts/providers/gitlab.py
