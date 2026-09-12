@@ -91,6 +91,7 @@ jobs:
         if: steps.publish.outcome == 'success'
         working-directory: ${{ steps.publish.outputs.dir }}
         env:
+          PROFILE_FORGE: github
           GH_TOKEN: ${{ github.token }}
           # External-platform secrets are injected only at generation time and
           # are never copied into the published branch or README.

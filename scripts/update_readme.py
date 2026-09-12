@@ -2,12 +2,12 @@
 # SPDX-FileCopyrightText: 2024-2026 ODA Alexandre
 # SPDX-License-Identifier: EUPL-1.2+
 
-"""Refresh dynamic GitHub profile README data and generate local SVG cards.
+"""Refresh dynamic profile README data and generate local SVG cards.
 
-No third-party Python packages are required. Dynamic public data comes from the
-GitHub API using the workflow's short-lived GITHUB_TOKEN and from reviewed
-external-platform adapters whose credentials, such as HTB and HackerOne tokens,
-are injected only through repository Actions secrets.
+No third-party Python packages are required. Forge-specific data is supplied by
+the selected provider; the current GitHub publication uses the workflow's
+short-lived GITHUB_TOKEN. Reviewed external-platform adapters receive credentials,
+such as HTB and HackerOne tokens, only through repository Actions secrets.
 
 Architecture contract
 ---------------------
@@ -21,7 +21,6 @@ rule exists rather than restating the SVG/HTML syntax.
 from __future__ import annotations
 
 import base64
-import datetime as dt
 from dataclasses import dataclass
 import html
 import hashlib
@@ -36,7 +35,20 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
-from typing import Any, Callable, TypeGuard
+from typing import Any, Callable
+
+from providers import load_provider
+from providers.base import (
+    ContributionDay,
+    ContributionSnapshot,
+    ForgeStatsSnapshot,
+    JsonArray,
+    JsonContainer,
+    JsonObject,
+    ProfileSnapshot,
+    is_json_array,
+    is_json_object,
+)
 
 TEMPLATE = Path(os.environ.get("README_TEMPLATE", "README.template"))
 README = Path("README.md")
@@ -56,20 +68,6 @@ STATS_PERIOD_LABEL = "· 365d"
 SLUG_SEPARATOR_RE = re.compile(r"[^a-z0-9]+")
 SECURITY_RESEARCH_CONFIG_COMPONENT = "Security Research configuration"
 CERTIFICATIONS_CONFIG_COMPONENT = "Certifications configuration"
-
-JsonObject = dict[str, Any]
-JsonArray = list[Any]
-JsonContainer = JsonObject | JsonArray
-
-
-def is_json_object(value: object) -> TypeGuard[JsonObject]:
-    """Narrow an untrusted mapping-shaped value to the project JSON object type."""
-    return isinstance(value, dict)
-
-
-def is_json_array(value: object) -> TypeGuard[JsonArray]:
-    """Narrow an untrusted sequence-shaped value to the project JSON array type."""
-    return isinstance(value, list)
 
 # Shared SVG design-system tokens. These are visual invariants: cards may
 # change their content/layout, but must reuse this frame, padding and spacing
@@ -109,36 +107,6 @@ class SvgStyle:
     secondary_opacity: float
     divider_opacity: float
     muted_opacity: float
-
-
-@dataclass(frozen=True)
-class ContributionDay:
-    """One GitHub contribution-calendar day."""
-
-    date: dt.date
-    count: int
-    level: str
-    weekday: int
-
-
-@dataclass(frozen=True)
-class ContributionSnapshot:
-    """365-day public contribution activity and collaboration metrics."""
-
-    total: int
-    code_reviews: int
-    repositories_contributed: int
-    weeks: tuple[tuple[ContributionDay, ...], ...]
-
-
-@dataclass(frozen=True)
-class GitHubStatsSnapshot:
-    """Professional GitHub signals displayed in the compact stats card."""
-
-    merged_pull_requests: int
-    code_reviews: int
-    repositories_contributed: int
-    stars_earned: int
 
 
 @dataclass(frozen=True)
@@ -295,43 +263,8 @@ LINKEDIN_URL = (
     "&trk=public_profile_top-card-primary-button-join-to-connect"
 )
 
-USERNAME = os.environ.get("GITHUB_REPOSITORY_OWNER", "").strip()
-TOKEN = os.environ.get("GH_TOKEN", "").strip()
-HTB_TOKEN = os.environ.get("HTB_TOKEN", "").strip()
-HTB_API_BASE_URL = os.environ.get(
-    "HTB_API_BASE_URL", "https://labs.hackthebox.com/api/v4"
-).rstrip("/")
-HACKERONE_API_TOKEN = os.environ.get("HACKERONE_API_TOKEN", "").strip()
-HACKERONE_API_BASE_URL = os.environ.get(
-    "HACKERONE_API_BASE_URL", "https://api.hackerone.com/v1"
-).rstrip("/")
-
-if not USERNAME:
-    raise SystemExit("GITHUB_REPOSITORY_OWNER is required")
-if not TOKEN:
-    raise SystemExit("GH_TOKEN is required")
-
-
-def github_json(url: str, *, payload: JsonObject | None = None) -> JsonContainer:
-    data = None
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "Authorization": f"Bearer {TOKEN}",
-        "X-GitHub-Api-Version": "2026-03-10",
-        "User-Agent": f"{USERNAME}-profile-readme",
-    }
-    if payload is not None:
-        data = json.dumps(payload).encode("utf-8")
-        headers["Content-Type"] = JSON_MEDIA_TYPE
-
-    request = urllib.request.Request(url, data=data, headers=headers)
-    try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            return json.load(response)
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")[:500]
-        raise RuntimeError(f"GitHub API HTTP {exc.code} for {url}: {body}") from exc
-
+PROVIDER = load_provider()
+USERNAME = PROVIDER.username
 
 def htb_json(path: str) -> JsonContainer:
     """Call the HTB Labs API without ever exposing the App Token in output.
@@ -1026,354 +959,6 @@ def derive_gitlab_username(text: str, social_accounts: list[JsonObject]) -> str:
     return USERNAME
 
 
-def list_owned_public_repos() -> list[JsonObject]:
-    repos: list[JsonObject] = []
-    page = 1
-    while True:
-        batch = github_json(
-            f"https://api.github.com/users/{USERNAME}/repos"
-            f"?type=owner&sort=updated&per_page=100&page={page}"
-        )
-        if not is_json_array(batch):
-            raise RuntimeError("Unexpected repository API response")
-        repos.extend(batch)
-        if len(batch) < 100:
-            return repos
-        page += 1
-
-
-def fetch_followers(health: HealthReport) -> list[JsonObject] | None:
-    """Fetch every public follower; failures remain non-fatal."""
-    followers: list[JsonObject] = []
-    page = 1
-    try:
-        while True:
-            batch = github_json(
-                f"https://api.github.com/users/{USERNAME}/followers?per_page=100&page={page}"
-            )
-            if not is_json_array(batch):
-                raise RuntimeError("Unexpected followers API response")
-            followers.extend(batch)
-            if len(batch) < 100:
-                break
-            page += 1
-    except Exception as exc:
-        health.add("GitHub followers", exc)
-        return None
-
-    return sorted(
-        (follower for follower in followers if follower.get("login")),
-        key=lambda follower: str(follower.get("login") or "").casefold(),
-    )
-
-
-def _repository_name(repo: JsonObject) -> str:
-    return str(repo.get("full_name") or repo.get("name") or "unknown")
-
-
-def _fetch_repository_languages(repo: JsonObject) -> JsonObject | None:
-    if repo.get("fork"):
-        return {}
-    languages_url = repo.get("languages_url")
-    if not languages_url:
-        return {}
-    try:
-        languages = github_json(str(languages_url))
-        if not is_json_object(languages):
-            raise RuntimeError("Unexpected languages API response")
-        return languages
-    except Exception:
-        return None
-
-
-def _add_language_totals(totals: dict[str, int], languages: JsonObject) -> None:
-    for language, byte_count in languages.items():
-        try:
-            totals[language] = totals.get(language, 0) + int(byte_count)
-        except (TypeError, ValueError):
-            continue
-
-
-def _report_language_failures(failures: list[str], health: HealthReport) -> None:
-    if not failures:
-        return
-    sample = ", ".join(failures[:5])
-    suffix = "" if len(failures) <= 5 else f" (+{len(failures) - 5} more)"
-    health.add(
-        "GitHub languages",
-        f"Unable to refresh language data for {len(failures)} repositories: "
-        f"{sample}{suffix}",
-    )
-
-
-def aggregate_languages(
-    repos: list[JsonObject],
-    health: HealthReport,
-) -> tuple[dict[str, int], bool]:
-    """Aggregate language bytes and tell callers whether the snapshot is complete."""
-    totals: dict[str, int] = {}
-    failures: list[str] = []
-    for repo in repos:
-        languages = _fetch_repository_languages(repo)
-        if languages is None:
-            failures.append(_repository_name(repo))
-        else:
-            _add_language_totals(totals, languages)
-    _report_language_failures(failures, health)
-    return totals, not failures
-
-
-def rolling_365_window() -> tuple[dt.datetime, dt.datetime]:
-    """Return the canonical UTC 365-day window shared by profile metrics."""
-    now = dt.datetime.now(dt.timezone.utc)
-    start = (now - dt.timedelta(days=364)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
-    return start, now
-
-
-
-CONTRIBUTIONS_QUERY = """
-query($login: String!, $from: DateTime!, $to: DateTime!) {
-  user(login: $login) {
-    contributionsCollection(from: $from, to: $to) {
-      totalPullRequestReviewContributions
-      commitContributionsByRepository(maxRepositories: 100) {
-        repository { nameWithOwner }
-      }
-      issueContributionsByRepository(maxRepositories: 100) {
-        repository { nameWithOwner }
-      }
-      pullRequestContributionsByRepository(maxRepositories: 100) {
-        repository { nameWithOwner }
-      }
-      pullRequestReviewContributionsByRepository(maxRepositories: 100) {
-        repository { nameWithOwner }
-      }
-      contributionCalendar {
-        totalContributions
-        weeks {
-          contributionDays {
-            date
-            contributionCount
-            contributionLevel
-            weekday
-          }
-        }
-      }
-    }
-  }
-}
-"""
-
-CONTRIBUTION_REPOSITORY_FIELDS = (
-    "commitContributionsByRepository",
-    "issueContributionsByRepository",
-    "pullRequestContributionsByRepository",
-    "pullRequestReviewContributionsByRepository",
-)
-
-
-def _contribution_collection(result: object) -> tuple[JsonObject, JsonObject]:
-    if not is_json_object(result) or result.get("errors"):
-        errors = result.get("errors") if is_json_object(result) else result
-        raise RuntimeError(f"GraphQL error: {errors}")
-    data = result.get("data")
-    user_data = data.get("user") if is_json_object(data) else None
-    if not is_json_object(user_data):
-        raise RuntimeError("GitHub contribution user was not returned")
-    collection = user_data.get("contributionsCollection")
-    if not is_json_object(collection):
-        raise RuntimeError("GitHub contributionsCollection was not returned")
-    calendar = collection.get("contributionCalendar")
-    if not is_json_object(calendar):
-        raise RuntimeError("GitHub contribution calendar was not returned")
-    return collection, calendar
-
-
-def _repository_names_from_groups(groups: object) -> set[str]:
-    names: set[str] = set()
-    if not is_json_array(groups):
-        return names
-    for group in groups:
-        repository = group.get("repository") if is_json_object(group) else None
-        if not is_json_object(repository):
-            continue
-        name = str(repository.get("nameWithOwner") or "").strip()
-        if name:
-            names.add(name.casefold())
-    return names
-
-
-def _contributed_repository_names(collection: JsonObject) -> set[str]:
-    names: set[str] = set()
-    for field in CONTRIBUTION_REPOSITORY_FIELDS:
-        names.update(_repository_names_from_groups(collection.get(field) or []))
-    return names
-
-
-def _contribution_day(
-    day: object,
-    start_date: dt.date,
-    end_date: dt.date,
-) -> ContributionDay | None:
-    if not is_json_object(day):
-        return None
-    day_date = dt.date.fromisoformat(str(day["date"]))
-    if not start_date <= day_date <= end_date:
-        return None
-    return ContributionDay(
-        date=day_date,
-        count=int(day.get("contributionCount") or 0),
-        level=str(day.get("contributionLevel") or "NONE"),
-        weekday=int(day.get("weekday") or 0),
-    )
-
-
-def _contribution_week(
-    week: object,
-    start_date: dt.date,
-    end_date: dt.date,
-) -> tuple[ContributionDay, ...]:
-    if not is_json_object(week):
-        return ()
-    days = (
-        _contribution_day(day, start_date, end_date)
-        for day in week.get("contributionDays", [])
-    )
-    return tuple(day for day in days if day is not None)
-
-
-def _contribution_weeks(
-    calendar: JsonObject,
-    start_date: dt.date,
-    end_date: dt.date,
-) -> tuple[tuple[ContributionDay, ...], ...]:
-    weeks = (
-        _contribution_week(week, start_date, end_date)
-        for week in calendar.get("weeks", [])
-    )
-    return tuple(week for week in weeks if week)
-
-
-def fetch_contribution_snapshot(health: HealthReport) -> ContributionSnapshot | None:
-    """Fetch one 365-day GitHub contribution snapshot for activity and reviews."""
-    start, now = rolling_365_window()
-    try:
-        result = github_json(
-            "https://api.github.com/graphql",
-            payload={
-                "query": CONTRIBUTIONS_QUERY,
-                "variables": {
-                    "login": USERNAME,
-                    "from": start.isoformat().replace("+00:00", "Z"),
-                    "to": now.isoformat().replace("+00:00", "Z"),
-                },
-            },
-        )
-        collection, calendar = _contribution_collection(result)
-        repository_names = _contributed_repository_names(collection)
-        weeks = _contribution_weeks(calendar, start.date(), now.date())
-        return ContributionSnapshot(
-            total=int(calendar.get("totalContributions") or 0),
-            code_reviews=int(collection.get("totalPullRequestReviewContributions") or 0),
-            repositories_contributed=len(repository_names),
-            weeks=weeks,
-        )
-    except Exception as exc:
-        health.add("GitHub contributions", exc)
-        return None
-
-
-
-def fetch_merged_pull_request_count(health: HealthReport) -> int | None:
-    """Count public pull requests authored and merged during the rolling 365 days."""
-    start, now = rolling_365_window()
-    search_query = (
-        f"author:{USERNAME} is:pr is:merged "
-        f"merged:{start.date().isoformat()}..{now.date().isoformat()}"
-    )
-    url = "https://api.github.com/search/issues?" + urlencode(
-        {"q": search_query, "per_page": 1}
-    )
-    try:
-        result = github_json(url)
-        if not is_json_object(result):
-            raise RuntimeError("Unexpected pull-request search response")
-        return int(result.get("total_count") or 0)
-    except Exception as exc:
-        health.add("GitHub merged pull requests", exc)
-        return None
-
-
-def build_github_stats_snapshot(
-    repos: list[JsonObject],
-    contributions: ContributionSnapshot,
-    merged_pull_requests: int,
-) -> GitHubStatsSnapshot:
-    """Combine current repository impact with the rolling collaboration snapshot."""
-    owned = [repo for repo in repos if not repo.get("fork")]
-    stars_earned = sum(int(repo.get("stargazers_count") or 0) for repo in owned)
-    return GitHubStatsSnapshot(
-        merged_pull_requests=merged_pull_requests,
-        code_reviews=contributions.code_reviews,
-        repositories_contributed=contributions.repositories_contributed,
-        stars_earned=stars_earned,
-    )
-
-
-def fetch_pinned_repositories(health: HealthReport) -> list[JsonObject] | None:
-    """Fetch pinned repositories in the exact order configured on the GitHub profile."""
-    query = """
-    query($login: String!) {
-      user(login: $login) {
-        pinnedItems(first: 6, types: [REPOSITORY]) {
-          nodes {
-            ... on Repository {
-              name
-              nameWithOwner
-              url
-              description
-              stargazerCount
-              primaryLanguage { name }
-              owner { login }
-            }
-          }
-        }
-      }
-    }
-    """
-    try:
-        result = github_json(
-            "https://api.github.com/graphql",
-            payload={"query": query, "variables": {"login": USERNAME}},
-        )
-        if not is_json_object(result) or result.get("errors"):
-            raise RuntimeError(
-                f"GraphQL error: {result.get('errors') if is_json_object(result) else result}"
-            )
-        user_data = result.get("data", {}).get("user")
-        if not is_json_object(user_data):
-            raise RuntimeError("GitHub pinned-items user was not returned")
-        pinned = user_data.get("pinnedItems")
-        if not is_json_object(pinned):
-            raise RuntimeError("GitHub pinnedItems was not returned")
-        raw_nodes: Any = pinned.get("nodes")
-        if not raw_nodes:
-            nodes: JsonArray = []
-        elif is_json_array(raw_nodes):
-            nodes = raw_nodes
-        else:
-            raise RuntimeError("Unexpected GitHub pinnedItems nodes response")
-        return [
-            node for node in nodes
-            if is_json_object(node) and node.get("name") and node.get("url")
-        ]
-    except Exception as exc:
-        health.add("GitHub pinned repositories", exc)
-        return None
-
-
 def svg_escape(value: object) -> str:
     return html.escape(str(value), quote=True)
 
@@ -1641,7 +1226,7 @@ def build_languages_svg(languages: dict[str, int], *, style: SvgStyle) -> str:
 
 
 def build_stats_svg(
-    snapshot: GitHubStatsSnapshot,
+    snapshot: ForgeStatsSnapshot,
     *,
     style: SvgStyle,
 ) -> str:
@@ -1656,8 +1241,8 @@ def build_stats_svg(
         return f"{value:,}".replace(",", " ")
 
     metrics = [
-        ("Merged PRs", STATS_PERIOD_LABEL, fmt(snapshot.merged_pull_requests)),
-        ("Code reviews", STATS_PERIOD_LABEL, fmt(snapshot.code_reviews)),
+        ("Merged PRs", STATS_PERIOD_LABEL, fmt(snapshot.merged_requests)),
+        ("Code reviews", STATS_PERIOD_LABEL, fmt(snapshot.reviews)),
         ("Repos contributed", STATS_PERIOD_LABEL, fmt(snapshot.repositories_contributed)),
         ("Stars earned", "", fmt(snapshot.stars_earned)),
     ]
@@ -3463,35 +3048,19 @@ def _published_readme() -> tuple[bool, str]:
     return exists, README.read_text(encoding="utf-8") if exists else ""
 
 
-def _github_profile_user(
+def _profile_snapshot(
     published_exists: bool,
     published: str,
     health: HealthReport,
-) -> JsonObject | None:
+) -> ProfileSnapshot | None:
     try:
-        user = github_json(f"https://api.github.com/users/{USERNAME}")
-        if not is_json_object(user):
-            raise RuntimeError("Unexpected user API response")
-        return user
+        return PROVIDER.profile()
     except Exception as exc:
-        health.add("GitHub profile", exc)
+        health.add(f"{PROVIDER.display_name} profile", exc)
         if published_exists and published.strip():
             README.write_text(published, encoding="utf-8")
             return None
         raise
-
-
-def _github_social_accounts(health: HealthReport) -> list[JsonObject]:
-    try:
-        accounts = github_json(
-            f"https://api.github.com/users/{USERNAME}/social_accounts?per_page=100"
-        )
-        if not is_json_array(accounts):
-            raise RuntimeError("Unexpected social accounts API response")
-        return accounts
-    except Exception as exc:
-        health.add("GitHub social accounts", exc)
-        return []
 
 
 def _blog_feed_settings(config: JsonObject, health: HealthReport) -> tuple[str, bool]:
@@ -3508,14 +3077,6 @@ def _blog_feed_settings(config: JsonObject, health: HealthReport) -> tuple[str, 
         )
         return "", False
     return feed_url, True
-
-
-def _profile_identity(user: JsonObject) -> tuple[str, str, str, str]:
-    display_name = user.get("name") or user.get("login") or USERNAME
-    bio = str(user.get("bio") or "").strip()
-    avatar_url = str(user.get("avatar_url") or f"https://github.com/{USERNAME}.png")
-    website_url = normalize_url(str(user.get("blog") or ""))
-    return str(display_name), bio, avatar_url, website_url
 
 
 def _build_profile_section(
@@ -3539,11 +3100,7 @@ def _build_profile_section(
 
 
 def _repository_snapshot(health: HealthReport) -> list[JsonObject] | None:
-    try:
-        return list_owned_public_repos()
-    except Exception as exc:
-        health.add("GitHub repositories", exc)
-        return None
+    return PROVIDER.repositories(health)
 
 
 def _language_snapshot(
@@ -3552,7 +3109,7 @@ def _language_snapshot(
 ) -> tuple[dict[str, int], bool]:
     if repos is None:
         return {}, False
-    return aggregate_languages(repos, health)
+    return PROVIDER.languages(repos, health)
 
 
 def _language_card_path(
@@ -3597,7 +3154,7 @@ def _stats_card_path(
             active_assets=active_assets,
             source_available=False,
         )
-    snapshot = build_github_stats_snapshot(
+    snapshot = PROVIDER.stats_snapshot(
         repos, contribution_snapshot, merged_pull_requests
     )
     return safe_svg_card(
@@ -3767,11 +3324,14 @@ def main(health: HealthReport) -> None:
     config = load_profile_config(health)
     active_assets: set[str] = set()
 
-    user = _github_profile_user(published_exists, published, health)
-    if user is None:
+    profile = _profile_snapshot(published_exists, published, health)
+    if profile is None:
         return
-    display_name, bio, avatar_url, website_url = _profile_identity(user)
-    social_accounts = _github_social_accounts(health)
+    display_name = profile.display_name
+    bio = profile.bio
+    avatar_url = profile.avatar_url
+    website_url = profile.website_url
+    social_accounts = PROVIDER.social_accounts(health)
     website_url = website_url or current_reference(published, "website_url")
     gitlab_username = derive_gitlab_username(published, social_accounts)
     github_url = f"https://github.com/{USERNAME}"
@@ -3802,8 +3362,8 @@ def main(health: HealthReport) -> None:
         health=health,
         active_assets=active_assets,
     )
-    contribution_snapshot = fetch_contribution_snapshot(health)
-    merged_pull_requests = fetch_merged_pull_request_count(health)
+    contribution_snapshot = PROVIDER.contribution_snapshot(health)
+    merged_pull_requests = PROVIDER.merged_request_count(health)
     stats_path = _stats_card_path(
         repos,
         contribution_snapshot,
@@ -3822,11 +3382,11 @@ def main(health: HealthReport) -> None:
         active_assets=active_assets,
     )
 
-    pinned = fetch_pinned_repositories(health)
+    pinned = PROVIDER.featured_projects(health)
     featured = _featured_projects_content(
         published, pinned, health=health, active_assets=active_assets
     )
-    followers = fetch_followers(health)
+    followers = PROVIDER.followers(health)
     community = build_community_block(followers)
     blog_posts = fetch_blog_posts(blog_feed_url, health) if blog_config_valid else None
     blog = build_blog_content(blog_posts)

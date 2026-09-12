@@ -241,6 +241,20 @@ small centered technical epilogue rendered after the last visible content
 section. It links directly to `./LICENSE` and `./NOTICE` and must not be merged
 into CONTACT, COMMUNITY, or any other professional-content block.
 
+### Forge data boundary
+
+`update_readme.py` owns rendering, fallbacks, shared configuration and reviewed
+external-platform adapters. Forge API access is isolated under `scripts/providers/`:
+
+- `base.py` defines forge-neutral snapshots and the provider contract;
+- `github.py` owns GitHub API calls and normalizes them into that contract;
+- `PROFILE_FORGE` selects the provider and defaults to `github`; unsupported values
+  fail closed rather than silently falling back to a different data source.
+
+The GitHub workflow sets `PROFILE_FORGE=github` explicitly. The provider
+boundary must preserve the rendered GitHub README, generated assets, fallback
+semantics, and Profile Health component names.
+
 Important source-of-truth rules:
 
 - `CONTACT`: destinations are dynamic/config-derived links, but the visual badges
