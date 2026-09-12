@@ -24,6 +24,7 @@ import base64
 import datetime as dt
 from dataclasses import dataclass
 import html
+from html.parser import HTMLParser
 import hashlib
 import json
 import math
@@ -637,22 +638,55 @@ def fetch_hackerone_snapshot(
     )
 
 
-def _visible_html_lines(document: str) -> list[str]:
-    """Return visible-ish HTML text lines without third-party parsing packages.
+class _VisibleTextParser(HTMLParser):
+    """Extract text nodes while suppressing non-visible script/style payloads."""
 
-    This helper intentionally strips script/style payloads before tags so
-    serialized application state cannot be mistaken for public profile text.
-    It is used only for low-frequency public profile adapters whose platforms do
-    not expose a reviewed public API.
+    _SUPPRESSED_ELEMENTS = frozenset({"script", "style"})
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._suppressed_depth = 0
+        self.text_chunks: list[str] = []
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        del attrs  # Required by HTMLParser's override contract; attributes are irrelevant here.
+        if tag.casefold() in self._SUPPRESSED_ELEMENTS:
+            self._suppressed_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if (
+            tag.casefold() in self._SUPPRESSED_ELEMENTS
+            and self._suppressed_depth > 0
+        ):
+            self._suppressed_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._suppressed_depth == 0:
+            self.text_chunks.append(data)
+
+
+def _visible_html_lines(document: str) -> list[str]:
+    """Return visible-ish HTML text lines without regex-based HTML filtering.
+
+    HTML is parsed with the standard library so script/style payloads are never
+    treated as visible profile text. This helper is intentionally an extractor,
+    not a sanitizer: callers receive normalized text only, never rewritten HTML.
     """
-    cleaned = re.sub(r"<script\b[^>]*>.*?</script>", " ", document, flags=re.I | re.S)
-    cleaned = re.sub(r"<style\b[^>]*>.*?</style>", " ", cleaned, flags=re.I | re.S)
-    cleaned = re.sub(r"<[^>]+>", "\n", cleaned)
-    return [
-        re.sub(r"\s+", " ", html.unescape(line)).strip()
-        for line in cleaned.splitlines()
-        if re.sub(r"\s+", " ", html.unescape(line)).strip()
-    ]
+    parser = _VisibleTextParser()
+    parser.feed(document)
+    parser.close()
+
+    lines: list[str] = []
+    for chunk in parser.text_chunks:
+        for raw_line in chunk.splitlines():
+            line = re.sub(r"\s+", " ", raw_line).strip()
+            if line:
+                lines.append(line)
+    return lines
 
 
 CYBERDEFENDERS_SKILL_NAMES = (
