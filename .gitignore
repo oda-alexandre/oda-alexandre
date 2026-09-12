@@ -90,3 +90,6 @@
 
 !/scripts/report_profile_health.py
 !/scripts/update_readme.py
+!/scripts/providers/__init__.py
+!/scripts/providers/base.py
+!/scripts/providers/github.py
