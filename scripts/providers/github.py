@@ -10,6 +10,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from typing import cast
 from urllib.parse import urlencode, urlparse
 
 from .base import (
@@ -31,6 +32,7 @@ from .base import (
 )
 
 JSON_MEDIA_TYPE = "application/json"
+PERIOD_365_DAYS = "· 365d"
 
 CONTRIBUTIONS_QUERY = """
 query($login: String!, $from: DateTime!, $to: DateTime!) {
@@ -65,6 +67,26 @@ query($login: String!, $from: DateTime!, $to: DateTime!) {
 }
 """
 
+PINNED_PROJECTS_QUERY = """
+query($login: String!) {
+  user(login: $login) {
+    pinnedItems(first: 6, types: [REPOSITORY]) {
+      nodes {
+        ... on Repository {
+          name
+          nameWithOwner
+          url
+          description
+          stargazerCount
+          primaryLanguage { name }
+          owner { login }
+        }
+      }
+    }
+  }
+}
+"""
+
 CONTRIBUTION_REPOSITORY_FIELDS = (
     "commitContributionsByRepository",
     "issueContributionsByRepository",
@@ -88,7 +110,7 @@ class GitHubProvider:
         self._token = token
 
     @classmethod
-    def from_environment(cls) -> "GitHubProvider":
+    def from_environment(cls) -> GitHubProvider:
         username = os.environ.get("GITHUB_REPOSITORY_OWNER", "").strip()
         token = os.environ.get("GH_TOKEN", "").strip()
         if not username:
@@ -336,9 +358,10 @@ class GitHubProvider:
     @staticmethod
     def _repository_names_from_groups(groups: object) -> set[str]:
         names: set[str] = set()
-        if not is_json_array(groups):
+        if not isinstance(groups, list):
             return names
-        for group in groups:
+        group_items = cast(JsonArray, groups)
+        for group in group_items:
             repository = group.get("repository") if is_json_object(group) else None
             if not is_json_object(repository):
                 continue
@@ -360,16 +383,17 @@ class GitHubProvider:
         start_date: dt.date,
         end_date: dt.date,
     ) -> ContributionDay | None:
-        if not is_json_object(day):
+        if not isinstance(day, dict):
             return None
-        day_date = dt.date.fromisoformat(str(day["date"]))
+        day_object = cast(JsonObject, day)
+        day_date = dt.date.fromisoformat(str(day_object["date"]))
         if not start_date <= day_date <= end_date:
             return None
         return ContributionDay(
             date=day_date,
-            count=int(day.get("contributionCount") or 0),
-            level=str(day.get("contributionLevel") or "NONE"),
-            weekday=int(day.get("weekday") or 0),
+            count=int(day_object.get("contributionCount") or 0),
+            level=str(day_object.get("contributionLevel") or "NONE"),
+            weekday=int(day_object.get("weekday") or 0),
         )
 
     @classmethod
@@ -465,12 +489,12 @@ class GitHubProvider:
         )
         return ForgeStatsSnapshot(
             metrics=(
-                ForgeMetric("Merged PRs", merged_requests, "· 365d"),
-                ForgeMetric("Code reviews", contributions.reviews, "· 365d"),
+                ForgeMetric("Merged PRs", merged_requests, PERIOD_365_DAYS),
+                ForgeMetric("Code reviews", contributions.reviews, PERIOD_365_DAYS),
                 ForgeMetric(
                     "Repos contributed",
                     contributions.repositories_contributed,
-                    "· 365d",
+                    PERIOD_365_DAYS,
                 ),
                 ForgeMetric("Stars earned", stars_earned),
             ),
@@ -480,90 +504,76 @@ class GitHubProvider:
             ),
         )
 
+    @staticmethod
+    def _pinned_nodes(result: JsonContainer) -> JsonArray:
+        if not is_json_object(result):
+            raise RuntimeError(f"GraphQL error: {result}")
+        errors = result.get("errors")
+        if errors:
+            raise RuntimeError(f"GraphQL error: {errors}")
+        data = result.get("data")
+        user_data = data.get("user") if is_json_object(data) else None
+        if not is_json_object(user_data):
+            raise RuntimeError("GitHub pinned-items user was not returned")
+        pinned = user_data.get("pinnedItems")
+        if not is_json_object(pinned):
+            raise RuntimeError("GitHub pinnedItems was not returned")
+        raw_nodes = pinned.get("nodes")
+        if not raw_nodes:
+            return []
+        if not is_json_array(raw_nodes):
+            raise RuntimeError("Unexpected GitHub pinnedItems nodes response")
+        return raw_nodes
+
+    def _featured_project_from_node(self, node: object) -> FeaturedProject | None:
+        if not is_json_object(node):
+            return None
+        name = str(node.get("name") or "").strip()
+        url = str(node.get("url") or "").strip()
+        if not name or not url:
+            return None
+
+        owner = node.get("owner")
+        owner_login = ""
+        if is_json_object(owner):
+            owner_login = str(owner.get("login") or "").strip()
+
+        language = node.get("primaryLanguage")
+        primary_language = ""
+        if is_json_object(language):
+            primary_language = str(language.get("name") or "").strip()
+
+        identity = str(node.get("nameWithOwner") or name).strip()
+        return FeaturedProject(
+            identity=identity,
+            name=name,
+            url=url,
+            description=str(node.get("description") or "").strip(),
+            owner=owner_login,
+            primary_language=primary_language,
+            stars=int(node.get("stargazerCount") or 0),
+            contributed=(
+                bool(owner_login) and owner_login.casefold() != self.username.casefold()
+            ),
+        )
+
     def featured_projects(
         self,
         health: HealthReporter,
     ) -> list[FeaturedProject] | None:
-        query = """
-        query($login: String!) {
-          user(login: $login) {
-            pinnedItems(first: 6, types: [REPOSITORY]) {
-              nodes {
-                ... on Repository {
-                  name
-                  nameWithOwner
-                  url
-                  description
-                  stargazerCount
-                  primaryLanguage { name }
-                  owner { login }
-                }
-              }
-            }
-          }
-        }
-        """
         try:
             result = self._json(
                 "https://api.github.com/graphql",
-                payload={"query": query, "variables": {"login": self.username}},
+                payload={
+                    "query": PINNED_PROJECTS_QUERY,
+                    "variables": {"login": self.username},
+                },
             )
-            if not is_json_object(result) or result.get("errors"):
-                raise RuntimeError(
-                    f"GraphQL error: "
-                    f"{result.get('errors') if is_json_object(result) else result}"
-                )
-            data = result.get("data")
-            user_data = data.get("user") if is_json_object(data) else None
-            if not is_json_object(user_data):
-                raise RuntimeError("GitHub pinned-items user was not returned")
-            pinned = user_data.get("pinnedItems")
-            if not is_json_object(pinned):
-                raise RuntimeError("GitHub pinnedItems was not returned")
-            raw_nodes = pinned.get("nodes")
-            if not raw_nodes:
-                nodes: JsonArray = []
-            elif is_json_array(raw_nodes):
-                nodes = raw_nodes
-            else:
-                raise RuntimeError("Unexpected GitHub pinnedItems nodes response")
-            projects: list[FeaturedProject] = []
-            for node in nodes:
-                if not is_json_object(node):
-                    continue
-                name = str(node.get("name") or "").strip()
-                url = str(node.get("url") or "").strip()
-                if not name or not url:
-                    continue
-                owner = node.get("owner")
-                owner_login = (
-                    str(owner.get("login") or "").strip()
-                    if is_json_object(owner)
-                    else ""
-                )
-                language = node.get("primaryLanguage")
-                primary_language = (
-                    str(language.get("name") or "").strip()
-                    if is_json_object(language)
-                    else ""
-                )
-                identity = str(node.get("nameWithOwner") or name).strip()
-                projects.append(
-                    FeaturedProject(
-                        identity=identity,
-                        name=name,
-                        url=url,
-                        description=str(node.get("description") or "").strip(),
-                        owner=owner_login,
-                        primary_language=primary_language,
-                        stars=int(node.get("stargazerCount") or 0),
-                        contributed=(
-                            bool(owner_login)
-                            and owner_login.casefold() != self.username.casefold()
-                        ),
-                    )
-                )
-            return projects
+            projects = (
+                self._featured_project_from_node(node)
+                for node in self._pinned_nodes(result)
+            )
+            return [project for project in projects if project is not None]
         except Exception as exc:  # noqa: BLE001
             health.add("GitHub pinned repositories", exc)
             return None
