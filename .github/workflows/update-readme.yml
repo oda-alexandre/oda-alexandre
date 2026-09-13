@@ -13,6 +13,17 @@ on:
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
+    inputs:
+      profile_health_test:
+        description: "Optional Profile Health self-test; use none for a normal manual publication"
+        required: true
+        default: none
+        type: choice
+        options:
+          - none
+          - incident-a
+          - incident-b
+          - recovery
 
 # The workflow needs only read access to repository contents. Publication to
 # main uses the dedicated SSH deploy key, while Profile Health is centralized in
@@ -26,6 +37,7 @@ concurrency:
 
 jobs:
   publish:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.profile_health_test == 'none' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -306,6 +318,8 @@ jobs:
         env:
           PROFILE_HEALTH_FORGE: github
           PROFILE_HEALTH_FILE: ${{ runner.temp }}/profile-health.json
+          PROFILE_HEALTH_TEST_CASE: ${{ inputs.profile_health_test || 'none' }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
           PROFILE_WORKFLOW_OUTCOME: ${{ needs.publish.result }}
           PROFILE_PREPARE_OUTCOME: ${{ needs.publish.outputs.prepare_outcome }}
           PROFILE_GENERATE_OUTCOME: ${{ needs.publish.outputs.generate_outcome }}
