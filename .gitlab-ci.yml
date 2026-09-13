@@ -4,25 +4,24 @@
 workflow:
   name: "Publish GitLab profile"
   rules:
-    # Scheduled refreshes stay on GitLab-hosted compute so the profile can update
-    # even when the project-local runner is intentionally offline.
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    # Scheduled refreshes run only from canonical dev and stay on GitLab-hosted
+    # compute so the public profile can refresh while the local runner is offline.
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME == "dev"'
       variables:
         RUNNER_ROUTING_TAG: "saas-linux-small-amd64"
 
-    # Source validation and publication on dev use the project-local runner and
-    # therefore do not consume GitLab.com hosted-runner compute minutes.
+    # Canonical source changes use the protected project-local shell runner.
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "dev"'
       variables:
         RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
 
-    # Release tags are source refs and must pass the same cryptographic gate.
+    # Release tags are canonical source refs and pass the same cryptographic gate.
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$/'
       variables:
         RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
 
-    # Manual validation runs use the project-local runner as well.
-    - if: '$CI_PIPELINE_SOURCE == "web"'
+    # Manual validation/publication is intentionally restricted to canonical dev.
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "dev"'
       variables:
         RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
 
@@ -39,6 +38,7 @@ stages:
   - verify
   - test
   - publish
+  - mirror
 
 variables:
   GIT_DEPTH: "0"
@@ -47,6 +47,9 @@ variables:
   PROFILE_FORGE: "gitlab"
   PYTHONDONTWRITEBYTECODE: "1"
   SOURCE_BRANCH: "dev"
+  # Bootstrap trust point verified on both forges before GitLab became canonical.
+  SOURCE_TRUST_ANCHOR_SHA: "f0ac3d4aa669fd0d31a3390354f8a4b9ff8f8f8b"
+  GITHUB_MIRROR_REPOSITORY: "oda-alexandre/oda-alexandre"
 
 verify_signature:
   stage: verify
@@ -87,6 +90,12 @@ verify_signature:
         fail "AUTHORIZED_GPG_FINGERPRINT must contain a full 40- or 64-hex-character fingerprint."
       fi
 
+      case "${SOURCE_TRUST_ANCHOR_SHA:?SOURCE_TRUST_ANCHOR_SHA is required}" in
+        *[!0-9a-fA-F]*|'') fail "SOURCE_TRUST_ANCHOR_SHA must be hexadecimal." ;;
+      esac
+      [ "${#SOURCE_TRUST_ANCHOR_SHA}" -eq 40 ] || \
+        fail "SOURCE_TRUST_ANCHOR_SHA must be a full 40-character commit id."
+
       GNUPGHOME="$(mktemp -d)"
       PUBLIC_KEY_FILE="$GNUPGHOME/profile-owner.gpg"
       export GNUPGHOME
@@ -116,6 +125,8 @@ verify_signature:
 
       gpg --batch --import "$PUBLIC_KEY_FILE" >/dev/null 2>&1
       git config --global --add safe.directory "$CI_PROJECT_DIR"
+      git fetch origin --no-tags \
+        "+refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH"
 
       verify_git_object() {
         object_type="$1"
@@ -156,31 +167,37 @@ verify_signature:
           "${object_type} ${object_name} was signed by ${signer_fpr}, expected ${EXPECTED_FPR}."
       }
 
-      ZERO_SHA="0000000000000000000000000000000000000000"
-
+      SOURCE_COMMIT="$CI_COMMIT_SHA"
       if [ -n "${CI_COMMIT_TAG:-}" ]; then
-        # A release is valid only when both the annotated tag object and its
-        # target source commit are signed by the authorized profile-owner key.
-        verify_git_object tag "$CI_COMMIT_TAG"
-        verify_git_object commit "$CI_COMMIT_SHA"
-      elif [ "$CI_PIPELINE_SOURCE" = "push" ] && \
-           [ -n "${CI_COMMIT_BEFORE_SHA:-}" ] && \
-           [ "$CI_COMMIT_BEFORE_SHA" != "$ZERO_SHA" ]; then
-        # Validate every commit introduced by a dev push, not only the new tip.
-        # This catches unsigned commits hidden behind a signed merge commit.
-        git merge-base --is-ancestor "$CI_COMMIT_BEFORE_SHA" "$CI_COMMIT_SHA" || \
-          fail "Non-fast-forward source update detected."
-        git rev-list --reverse "$CI_COMMIT_BEFORE_SHA..$CI_COMMIT_SHA" |
-          while IFS= read -r commit_sha; do
-            [ -n "$commit_sha" ] && verify_git_object commit "$commit_sha"
-          done
+        TAG_REF="refs/tags/$CI_COMMIT_TAG"
+        [ "$(git cat-file -t "$TAG_REF")" = "tag" ] || \
+          fail "Release $CI_COMMIT_TAG must be an annotated tag object."
+        SOURCE_COMMIT="$(git rev-parse "${TAG_REF}^{commit}")"
+        [ "$SOURCE_COMMIT" = "$CI_COMMIT_SHA" ] || \
+          fail "Release tag target does not match the GitLab pipeline commit."
+        git merge-base --is-ancestor "$SOURCE_COMMIT" "refs/remotes/origin/$SOURCE_BRANCH" || \
+          fail "Release tag target is not part of canonical dev history."
+        verify_git_object tag "$TAG_REF"
       else
-        # Schedules and manual runs have no meaningful before-SHA range. The
-        # source tip itself must still be signed before publication can proceed.
-        verify_git_object commit "$CI_COMMIT_SHA"
+        [ "${CI_COMMIT_REF_NAME:-}" = "$SOURCE_BRANCH" ] || \
+          fail "Non-tag pipelines must run from canonical dev."
       fi
 
-      echo "[ok] Authorized GPG signatures validated."
+      git cat-file -e "${SOURCE_TRUST_ANCHOR_SHA}^{commit}" || \
+        fail "Configured source trust anchor does not exist in repository history."
+      git merge-base --is-ancestor "$SOURCE_TRUST_ANCHOR_SHA" "$SOURCE_COMMIT" || \
+        fail "Source commit does not descend from the configured trust anchor."
+
+      # Validate the stable bootstrap point and every reachable source commit
+      # after it. A failed unsigned push therefore remains blocked on all later
+      # pipelines instead of disappearing from the next push range.
+      verify_git_object commit "$SOURCE_TRUST_ANCHOR_SHA"
+      git rev-list --reverse "$SOURCE_TRUST_ANCHOR_SHA..$SOURCE_COMMIT" |
+        while IFS= read -r commit_sha; do
+          [ -n "$commit_sha" ] && verify_git_object commit "$commit_sha"
+        done
+
+      echo "[ok] Authorized GPG signatures validated for canonical source history."
 
 # Secret scanning is useful on source-changing pipelines, but deliberately skipped
 # on daily schedules because the source tree has not changed and the schedule uses
@@ -205,6 +222,10 @@ test_secrets:
 
 publish_profile:
   stage: publish
+  rules:
+    - if: '$CI_COMMIT_TAG'
+      when: never
+    - when: on_success
   image: "python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e"
   resource_group: gitlab-profile-main
   interruptible: false
@@ -265,14 +286,23 @@ publish_profile:
       }
       trap cleanup EXIT HUP INT TERM
 
-      git fetch origin --prune \
-        "+refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH" \
-        '+refs/heads/main:refs/remotes/origin/main'
+      git fetch origin --prune '+refs/heads/main:refs/remotes/origin/main'
 
-      # Always publish from the canonical source branch rather than from the
-      # triggering ref. Tag, schedule, and manual pipelines therefore render the
-      # same source tree as a dev pipeline.
-      git checkout --detach "origin/$SOURCE_BRANCH"
+      # verify_signature validated this immutable pipeline commit. Publishing the
+      # exact same object prevents a newer, unverified dev tip from racing into
+      # this job between verification and publication.
+      SOURCE_COMMIT="$CI_COMMIT_SHA"
+      git checkout --detach "$SOURCE_COMMIT"
+
+      # Push pipelines publish each source revision at most once. If a newer
+      # publication already contains this commit, this job is stale and must not
+      # overwrite that newer public snapshot. Schedule/manual runs intentionally
+      # continue so they can refresh dynamic data without source changes.
+      if [ "$CI_PIPELINE_SOURCE" = "push" ] && \
+         git merge-base --is-ancestor "$SOURCE_COMMIT" refs/remotes/origin/main; then
+        echo "Source commit is already represented in GitLab main; skipping stale publication."
+        exit 0
+      fi
 
       rm -rf "$PUBLISH_DIR"
       git worktree add --detach "$PUBLISH_DIR" origin/main
@@ -282,16 +312,16 @@ publish_profile:
       # Preserve the source commit graph without copying source-only files into
       # the published main tree. Refuse to join unrelated histories silently; the
       # current publication branch must already belong to the shared source graph.
-      if ! git -C "$PUBLISH_DIR" merge-base "origin/$SOURCE_BRANCH" HEAD >/dev/null 2>&1; then
+      if ! git -C "$PUBLISH_DIR" merge-base "$SOURCE_COMMIT" HEAD >/dev/null 2>&1; then
         echo "ERROR: GitLab main and dev do not share publication history." >&2
         exit 1
       fi
-      if ! git -C "$PUBLISH_DIR" merge-base --is-ancestor "origin/$SOURCE_BRANCH" HEAD; then
+      if ! git -C "$PUBLISH_DIR" merge-base --is-ancestor "$SOURCE_COMMIT" HEAD; then
         git -C "$PUBLISH_DIR" merge \
           --no-commit \
           --no-ff \
           -s ours \
-          "origin/$SOURCE_BRANCH"
+          "$SOURCE_COMMIT"
       fi
 
       rm -f \
@@ -362,9 +392,30 @@ publish_profile:
       fi
 
       git -C "$PUBLISH_DIR" commit -m "chore(readme): publish GitLab profile"
-      git -C "$PUBLISH_DIR" merge-base --is-ancestor "origin/$SOURCE_BRANCH" HEAD
+      git -C "$PUBLISH_DIR" merge-base --is-ancestor "$SOURCE_COMMIT" HEAD
 
       # CI_REPOSITORY_URL is a predefined, per-job HTTPS clone URL containing
       # CI_JOB_TOKEN. The token exists only for this job and GitLab masks it in
       # logs. Project settings must explicitly allow same-project job-token pushes.
       git -C "$PUBLISH_DIR" push "$CI_REPOSITORY_URL" HEAD:main
+
+mirror_source_to_github:
+  stage: mirror
+  resource_group: github-source-mirror
+  interruptible: false
+  timeout: 5m
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$/'
+    - when: never
+  before_script:
+    - |
+      set -eu
+      for command_name in git python3 openssl; do
+        command -v "$command_name" >/dev/null 2>&1 || {
+          echo "ERROR: local shell runner is missing required command: $command_name" >&2
+          exit 1
+        }
+      done
+  script:
+    - python3 scripts/mirror_source_to_github.py

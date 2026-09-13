@@ -279,11 +279,12 @@ external-platform adapters. Forge API access is isolated under `scripts/provider
 
 The GitHub workflow sets `PROFILE_FORGE=github` explicitly and publishes GitHub
 `main`. The GitLab pipeline sets `PROFILE_FORGE=gitlab` explicitly and publishes
-GitLab `main`. During this migration stage GitHub remains authoritative for source
-`dev` and signed `v*` release tags, which continue to mirror one-way to GitLab.
-Publication branches are now forge-owned and must never be mirrored between forges.
-The provider boundary must preserve GitHub rendering, fallback semantics, and Profile
-Health component names while allowing GitLab-native professional signals.
+GitLab `main`. GitLab `dev` is the canonical source branch and signed `v*` release
+tags are canonical GitLab source refs. After cryptographic validation, GitLab CI
+mirrors only those source refs to GitHub; publication branches are forge-owned and
+must never be mirrored between forges. The provider boundary must preserve GitHub
+rendering, fallback semantics, and Profile Health component names while allowing
+GitLab-native professional signals.
 
 GitLab anonymous user lookup supplies the basic public identity needed for a
 functional profile (name, avatar and profile URL). Richer documented user detail
@@ -417,25 +418,28 @@ Before implementing a new feature:
 each forge. Release tags version source revisions, not generated publication
 snapshots.
 
-### Transitional authority during the GitLab migration
+### Canonical source authority and cutover window
 
-Until the source-of-truth cutover is completed:
+GitLab is the canonical source authority:
 
-- GitHub `dev` remains the canonical editable source branch;
-- annotated, signed release tags matching `v*` identify commits from that `dev`
-  lineage and remain canonical on GitHub;
-- GitHub mirrors only `dev` and exact `v*` tag refs one-way to GitLab;
+- GitLab `dev` is the editable source branch;
+- annotated, signed release tags matching `v*` identify commits from that GitLab
+  `dev` lineage and are created canonically on GitLab;
+- after CI verifies the complete trusted source history, GitLab mirrors only the
+  triggering `dev` source commit or exact signed `v*` tag object to GitHub;
+- GitHub `dev` and `v*` are mirrors and must never become independent source refs;
 - GitHub `main` is generated only by GitHub Actions with `PROFILE_FORGE=github`;
 - GitLab `main` is generated only by GitLab CI with `PROFILE_FORGE=gitlab`;
 - **`main` is never mirrored between forges.** The two publication branches are
-  expected to diverge because their forge-native statistics and links differ;
-- GitLab must not create independent release tags while GitHub remains the source
-  authority.
+  expected to diverge because their forge-native statistics and links differ.
 
-The remaining GitHub -> GitLab source mirror is deliberately temporary. It keeps
-GitLab `dev` and `v*` synchronized while GitLab publication is validated. A later
-migration stage reverses source synchronization to GitLab -> GitHub, then removes
-the old GitHub -> GitLab mirror credentials and logic.
+During the one-time cutover validation window, the legacy GitHub -> GitLab deploy-key
+mirror can remain enabled as a rollback path. It already excludes `main`, so a
+GitLab -> GitHub source push followed by GitHub Actions can only produce a no-op
+source push back to GitLab when refs are identical. Remove that legacy step, deploy
+key, GitHub secret and host-fingerprint variable immediately after the GitLab ->
+GitHub end-to-end path is proven. Do not leave both directions enabled as steady
+state.
 
 ### Publication lineage
 
@@ -450,13 +454,15 @@ Both forge publication workflows preserve the same source-history invariant:
 - existing `dev` commits are never rebased, squashed, cherry-picked, or recreated
   during publication, which preserves commit IDs, authorship, and signatures.
 
-When `origin/dev` is not already an ancestor of a forge's current `main`, its
-publication workflow starts an `ours` merge with `--no-commit`. The `ours` strategy
-records `dev` as a second parent while retaining the current publication tree. The
-selective `rsync`, README generation, and asset generation then build the exact
-forge-specific public snapshot, and one publication commit records both parents.
-On scheduled refreshes where `dev` is already an ancestor, publication remains a
-normal single-parent snapshot commit.
+When the verified source commit is not already an ancestor of a forge's current
+`main`, its publication workflow starts an `ours` merge with `--no-commit`. The
+`ours` strategy records that immutable source commit as a second parent while
+retaining the current publication tree. The selective `rsync`, README generation,
+and asset generation then build the exact forge-specific public snapshot, and one
+publication commit records both parents. On scheduled refreshes where the verified
+`dev` commit is already an ancestor, publication remains a normal single-parent
+snapshot commit. A stale push pipeline whose source commit is already represented
+in GitLab `main` exits without regenerating an older public tree.
 
 Do not replace this lineage with squash/rebase publication or a force push. Those
 approaches either rewrite signed source commits or disconnect them from the default
@@ -475,14 +481,18 @@ The GitLab project must be configured before the first publication job runs:
 1. In **Settings -> CI/CD -> Job token permissions**, enable **Allow Git push
    requests to the repository**. Keep cross-project job-token pushes disabled; this
    pipeline only needs same-project publication.
-2. Protect `dev` and `main`, disable force-push on both, and protect the `v*` tag
-   namespace. `dev` must still allow the temporary GitHub -> GitLab mirror deploy
-   key to update the source ref, while `main` must allow the Maintainer/Owner
-   identity whose pipeline uses `CI_JOB_TOKEN` to perform the publication push.
-3. Store `AUTHORIZED_GPG_FINGERPRINT`, `HTB_TOKEN`, and `HACKERONE_API_TOKEN` as
-   protected GitLab CI/CD variables. The fingerprint is a trust anchor, not a
-   secret, and must contain the complete primary-key fingerprint. The external
-   platform tokens remain secrets and must never be written into the repository.
+2. Protect `dev` and `main` and disable force-push on both. `dev` allows
+   Maintainers/Owners to create canonical source commits; the temporary legacy
+   GitHub -> GitLab deploy key may remain only for the cutover E2E window. `main`
+   allows the Maintainer/Owner identity whose pipeline uses `CI_JOB_TOKEN` to
+   perform normal publication pushes and must not retain the legacy mirror key.
+   Protect the `v*` namespace as immutable release refs.
+3. Store `AUTHORIZED_GPG_FINGERPRINT`, `HTB_TOKEN`, `HACKERONE_API_TOKEN`,
+   `GITHUB_MIRROR_APP_ID`, and `GITHUB_MIRROR_APP_PRIVATE_KEY_B64` as protected
+   GitLab CI/CD variables. The fingerprint and App ID are identifiers/trust
+   configuration rather than secrets. External-platform tokens and the Base64
+   private key are `Masked and hidden` secrets and must never be written into the
+   repository or logs.
 4. Register one project-local **system-mode shell runner** named `oda-alexandre`
    and tagged `oda-alexandre-gitlab-runner`; disable untagged jobs and mark it
    protected. This intentionally matches the existing Starfighter host model and
@@ -500,47 +510,94 @@ The GitLab project must be configured before the first publication job runs:
 
 GitLab Free can display and verify GPG-signed commits, but the server-side push rule
 that rejects unsigned commits is a Premium/Ultimate feature. This project therefore
-uses CI as a compensating publication gate rather than pretending Free has an
-equivalent pre-receive policy. The gate is deliberately stricter than a tip-only
-check:
+uses CI as a compensating publication/mirroring gate. It deliberately validates a
+stable source-history trust boundary rather than only the most recent push range:
 
 - `AUTHORIZED_GPG_FINGERPRINT` lives outside the repository as a protected CI/CD
-  variable, so an unsigned source change cannot replace the configured trust anchor;
+  variable and identifies the only accepted signing key;
+- `SOURCE_TRUST_ANCHOR_SHA` is the pre-cutover commit verified on both forges before
+  GitLab became canonical. The pipeline verifies that anchor itself on every run;
 - the public key is downloaded from `${CI_SERVER_URL}/${CI_PROJECT_ROOT_NAMESPACE}.gpg`
-  and its full fingerprint must contain the configured trust anchor before import;
-- a `dev` push verifies every commit introduced by `CI_COMMIT_BEFORE_SHA..CI_COMMIT_SHA`;
-- a `v*` release verifies both the annotated tag object with `git verify-tag` and
-  the target source commit with `git verify-commit`;
-- schedule/manual pipelines verify the source tip before publication;
-- every successful cryptographic verification must resolve to the authorized primary
-  key fingerprint, not merely to any valid key present on the GitLab profile.
+  and its full fingerprint must contain the configured key before import;
+- every commit reachable from `SOURCE_TRUST_ANCHOR_SHA..CI_COMMIT_SHA` is verified,
+  so an unsigned commit that once made a pipeline fail cannot become implicitly
+  trusted by a later signed commit;
+- a `v*` release must be an annotated tag, must target a commit in canonical `dev`
+  history, and both the tag object and all source history through its target must
+  validate against the authorized key;
+- schedule and manual pipelines are accepted only when they target `dev`, so the
+  immutable `CI_COMMIT_SHA` that is verified is also the exact source object later
+  published;
+- `publish_profile` is intentionally skipped for tag pipelines. Tags version source
+  history; they do not independently refresh the GitLab publication branch.
 
 This CI control **does not reject the Git push itself**: an unsigned commit can reach
-`dev` before the pipeline fails. Protected branch/tag permissions therefore remain
-part of the control boundary, and `publish_profile` cannot run after a failed
-verification stage. When the source-of-truth cutover later moves `dev` to GitLab,
-this limitation must remain explicit unless the subscription or enforcement model
-changes.
+GitLab `dev` before the pipeline fails. It cannot, however, be published to GitLab
+`main` or mirrored to GitHub, and every later pipeline continues to encounter and
+reject that unsigned history. Protected branch/tag permissions remain part of the
+control boundary.
 
-A Gitleaks job scans source-changing pipelines on the same project-local shell
+A Gitleaks job scans source-changing pipelines on the protected project-local shell
 runner. It is intentionally skipped for daily schedules because those runs do not
 introduce a new source tree and should consume only the minimum hosted-runner
 compute required for verification and publication. Docker `image:` declarations
 are relevant only to the hosted schedule path; the shell executor runs directly on
 the trusted host and therefore uses the preinstalled local toolchain.
 
-The `.gitlab-ci.yml` pipeline is accepted for `dev` pushes, signed SemVer `v*` tag
-pushes, schedules, and manual web runs. Regardless of the triggering ref, it
-explicitly fetches and publishes `origin/dev`, so release and scheduled refreshes
-cannot render a stale publication branch as source. `main` pushes made with
-`CI_JOB_TOKEN` do not create a second pipeline.
+### GitLab -> GitHub source mirror credentials and rules
 
-Repository branch rules should match this model: `dev` must block deletion and
-force-push and is cryptographically gated by CI; each forge `main` should block
-deletion/force-push but must allow its publication identity's normal fast-forward
-push. Generated publication commits remain unsigned unless a dedicated publication
-signing identity is introduced, so signed-source enforcement applies to `dev` and
-release tags, not generated `main` snapshots.
+The canonical source mirror uses a repository-scoped GitHub App named
+`oda-alexandre-gitlab-mirror`, not a persistent PAT or another write deploy key.
+The App installation is limited to `oda-alexandre/oda-alexandre` and grants only
+repository metadata read plus `Contents: read/write` and `Workflows: read/write`.
+The latter is required because canonical `dev` contains `.github/workflows/`.
+
+GitLab stores the App ID plus a Base64-encoded private key as protected CI/CD
+variables. `scripts/mirror_source_to_github.py` creates a short-lived RS256 App JWT,
+resolves the repository installation dynamically, and requests a one-hour
+installation token scoped back down to this repository with `contents:write` and
+`workflows:write`. Git authentication uses an HTTP extra header kept only in the
+job process environment; the token is never placed in a remote URL or printed.
+
+The mirror job runs only for push pipelines on canonical `dev` or signed SemVer
+`v*` tags, after all earlier pipeline stages succeed. It never runs for schedules
+or manual refreshes and has no code path for `main`:
+
+- `dev` is fast-forwarded only to the exact `CI_COMMIT_SHA` validated by that
+  pipeline. Divergence is an error; force-push is never used. A stale concurrent
+  pipeline may safely no-op only when GitHub's newer tip is already contained in
+  current canonical GitLab `dev`;
+- a tag job mirrors only its triggering annotated tag object. Existing GitHub tags
+  must have the exact same object ID; differing objects are an immutability error;
+- a tag is not created on GitHub until GitHub `dev` already contains its target
+  commit, preserving branch/tag ordering and exact source lineage.
+
+GitHub repository rulesets intentionally separate authorization from immutable
+history controls:
+
+- `dev-source-write-authorization`: creation/update bypass for the installed App
+  (and the owner only during the cutover window);
+- `dev-source-history-protection`: signed commits required, deletion and force-push
+  blocked, no bypass;
+- `release-tag-creation-authorization`: tag creation bypass for the installed App
+  (and the owner only during the cutover window);
+- `release-tag-immutability-and-signatures`: updates, deletion and force-push
+  blocked plus signed commits required, no bypass;
+- GitHub `main` remains governed separately by `main-publication-*` rules and its
+  existing publication deploy key. The mirror App receives no `main` bypass.
+
+After the first complete GitLab `dev` -> GitHub `dev` -> GitHub Actions -> GitHub
+`main` E2E succeeds, remove the legacy GitHub -> GitLab mirror and its credentials,
+then remove the owner's GitHub bypasses from source/tag creation rules so GitHub
+source refs are technical mirrors only. Create the daily GitLab schedule only after
+that cutover is proven.
+
+Repository branch rules should match this model: GitLab `dev` blocks force-push and
+is cryptographically gated by CI; each forge `main` blocks deletion/force-push but
+allows only its publication identity's normal fast-forward push. Generated
+publication commits remain unsigned unless a dedicated publication signing identity
+is introduced, so signed-source enforcement applies to `dev` and release tags, not
+generated `main` snapshots.
 
 ## 9. Things intentionally avoided
 

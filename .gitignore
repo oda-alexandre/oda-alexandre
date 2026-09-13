@@ -89,6 +89,7 @@
 
 !/docs/PROFILE_README_ARCHITECTURE.md
 
+!/scripts/mirror_source_to_github.py
 !/scripts/report_profile_health.py
 !/scripts/update_readme.py
 !/scripts/providers/__init__.py
