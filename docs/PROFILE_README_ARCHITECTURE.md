@@ -353,9 +353,13 @@ Important source-of-truth rules:
   Profile Health incident. Once a valid HTTPS feed URL is configured, temporary
   source failures preserve the last canonical section content and are reported.
 - `MOST USED LANGUAGES`: GitHub aggregates language byte counts across public
-  owned non-fork repositories. GitLab exposes per-project language percentages, so
-  its provider aggregates those percentages with equal project weight instead of
-  pretending that GitLab supplies repository byte counts.
+  owned non-fork repositories. GitLab combines all public personal non-fork
+  projects with public group/subgroup projects from the contributed-projects feed
+  only when those group projects explicitly carry `profile-featured`. The combined
+  project set is deduplicated before language lookup. GitLab exposes per-project
+  language percentages rather than byte counts, so every eligible project receives
+  equal project weight. Language names are merged case-insensitively into one row
+  before ranking; the chart must never render duplicate rows for the same language.
 - `COMMUNITY`: followers from the active forge; avoid duplicating follower count in
   Stats. GitHub keeps its dynamic follower-count Shields.io badges. GitLab omits
   COMMUNITY because follower and rich user-detail endpoints require signed-in user

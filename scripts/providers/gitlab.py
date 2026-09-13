@@ -266,33 +266,102 @@ class GitLabProvider:
         except Exception:  # noqa: BLE001
             return None
 
-    def languages(
+    def _language_candidates(
         self,
         repositories: list[JsonObject],
         health: HealthReporter,
-    ) -> tuple[dict[str, int], bool]:
-        """Aggregate GitLab's per-project language percentages with equal project weight."""
-        totals: dict[str, int] = {}
+    ) -> tuple[list[JsonObject], bool]:
+        """Return the deduplicated project set used for GitLab language totals."""
+        contributed_complete = True
+        try:
+            contributed_projects = self._contributed_projects()
+        except Exception as exc:  # noqa: BLE001
+            # Group-project language coverage is additive, but a failed discovery
+            # must mark the snapshot incomplete so the renderer preserves the
+            # last-good combined card instead of silently regressing to personal-only.
+            health.add("GitLab language projects", exc)
+            contributed_projects = []
+            contributed_complete = False
+
+        group_projects = self._featured_group_candidates(contributed_projects)
+        candidates: list[JsonObject] = []
+        seen: set[str] = set()
+        for repository in [*repositories, *group_projects]:
+            if self._is_fork(repository):
+                continue
+            identity = self._project_identity(repository)
+            if identity and identity in seen:
+                continue
+            if identity:
+                seen.add(identity)
+            candidates.append(repository)
+        return candidates, contributed_complete
+
+    def _aggregate_language_totals(
+        self,
+        repositories: list[JsonObject],
+    ) -> tuple[dict[str, int], list[str]]:
+        """Combine project language percentages into one case-insensitive total."""
+        totals_by_key: dict[str, int] = {}
+        labels_by_key: dict[str, str] = {}
         failures: list[str] = []
+
         for repository in repositories:
             project_languages = self._project_languages(repository)
             if project_languages is None:
                 failures.append(str(repository.get("path_with_namespace") or "unknown"))
                 continue
             for language, percentage in project_languages.items():
-                # GitLab exposes percentages rather than byte counts. Scaling to an
-                # integer preserves deterministic relative weights for the shared
-                # renderer while giving every public non-fork project equal weight.
-                totals[language] = totals.get(language, 0) + round(percentage * 1000)
-        if failures:
-            sample = ", ".join(failures[:5])
-            suffix = "" if len(failures) <= 5 else f" (+{len(failures) - 5} more)"
-            health.add(
-                "GitLab languages",
-                f"Unable to refresh language data for {len(failures)} projects: "
-                f"{sample}{suffix}",
-            )
-        return totals, not failures
+                label = " ".join(str(language).split())
+                if not label:
+                    continue
+                key = label.casefold()
+                labels_by_key.setdefault(key, label)
+                # GitLab exposes percentages, not repository byte counts. Scaling
+                # preserves deterministic relative weights while equal-weighting
+                # each project and merging identical language names into one row.
+                totals_by_key[key] = totals_by_key.get(key, 0) + round(percentage * 1000)
+
+        totals = {
+            labels_by_key[key]: value
+            for key, value in totals_by_key.items()
+            if value > 0
+        }
+        return totals, failures
+
+    @staticmethod
+    def _report_language_failures(
+        failures: list[str],
+        health: HealthReporter,
+    ) -> None:
+        """Report failed per-project language lookups without duplicating formatting."""
+        if not failures:
+            return
+        sample = ", ".join(failures[:5])
+        suffix = "" if len(failures) <= 5 else f" (+{len(failures) - 5} more)"
+        health.add(
+            "GitLab languages",
+            f"Unable to refresh language data for {len(failures)} projects: "
+            f"{sample}{suffix}",
+        )
+
+    def languages(
+        self,
+        repositories: list[JsonObject],
+        health: HealthReporter,
+    ) -> tuple[dict[str, int], bool]:
+        """Aggregate personal and explicitly featured group-project languages.
+
+        GitLab exposes percentages rather than repository byte counts. Every
+        eligible public non-fork project therefore has equal project weight.
+        Personal projects are always eligible; group/subgroup projects enter the
+        portfolio language set only when they carry ``profile-featured``, matching
+        the explicit selection rule used by FEATURED PROJECTS.
+        """
+        candidates, contributed_complete = self._language_candidates(repositories, health)
+        totals, failures = self._aggregate_language_totals(candidates)
+        self._report_language_failures(failures, health)
+        return totals, contributed_complete and not failures
 
     @staticmethod
     def _contribution_counts(
@@ -548,13 +617,29 @@ class GitLabProvider:
         )
 
     @staticmethod
-    def _featured_identity(repository: JsonObject) -> str:
-        """Return a stable key used to deduplicate personal and contributed projects."""
+    def _project_identity(repository: JsonObject) -> str:
+        """Return a stable key used to deduplicate project collections."""
         project_id = repository.get("id")
         if project_id is not None:
             return f"id:{project_id}"
         path = str(repository.get("path_with_namespace") or "").strip().casefold()
         return f"path:{path}" if path else ""
+
+    def _featured_group_candidates(
+        self,
+        contributed_projects: list[JsonObject],
+    ) -> list[JsonObject]:
+        """Return public group/subgroup projects explicitly selected for the profile."""
+        return [
+            repository
+            for repository in contributed_projects
+            if str(repository.get("visibility") or "").strip().casefold() == "public"
+            and self._is_group_project(repository)
+            and not self._is_fork(repository)
+            and repository.get("name")
+            and repository.get("web_url")
+            and self._has_featured_topic(repository)
+        ]
 
     def _featured_candidates(
         self,
@@ -578,25 +663,12 @@ class GitLabProvider:
         ]
         personal_candidates = personal_tagged or personal_eligible
 
-        # GitLab has no profile pinning equivalent for group projects. The public
-        # contributed-projects endpoint supplies group/subgroup projects the user
-        # worked on during the past year; require an explicit topic so unrelated
-        # external contributions never appear automatically.
-        group_candidates = [
-            repository
-            for repository in contributed_projects
-            if str(repository.get("visibility") or "").strip().casefold() == "public"
-            and self._is_group_project(repository)
-            and not self._is_fork(repository)
-            and repository.get("name")
-            and repository.get("web_url")
-            and self._has_featured_topic(repository)
-        ]
+        group_candidates = self._featured_group_candidates(contributed_projects)
 
         candidates: list[JsonObject] = []
         seen: set[str] = set()
         for repository in [*personal_candidates, *group_candidates]:
-            identity = self._featured_identity(repository)
+            identity = self._project_identity(repository)
             if identity and identity in seen:
                 continue
             if identity:
