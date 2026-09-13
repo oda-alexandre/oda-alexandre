@@ -73,6 +73,7 @@
 !/.gitignore
 
 !/.github/workflows/update-readme.yml
+!/.gitlab-ci.yml
 
 !/LICENSE
 !/NOTICE

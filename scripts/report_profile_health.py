@@ -105,7 +105,6 @@ def api(
         ) from exc
 
 
-
 def _health_report_incidents(generate_outcome: str) -> dict[str, str]:
     incidents: dict[str, str] = {}
     if not HEALTH_FILE.exists():
@@ -117,7 +116,9 @@ def _health_report_incidents(generate_outcome: str) -> dict[str, str]:
     try:
         payload = _decode_json_container(HEALTH_FILE.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
-        incidents[PROFILE_HEALTH_REPORT_COMPONENT] = f"Unable to read health report: {exc}"
+        incidents[PROFILE_HEALTH_REPORT_COMPONENT] = (
+            f"Unable to read health report: {exc}"
+        )
         return incidents
     if not isinstance(payload, dict):
         incidents[PROFILE_HEALTH_REPORT_COMPONENT] = (
@@ -171,7 +172,6 @@ def load_incidents() -> list[Incident]:
         Incident(component=component, message=message)
         for component, message in sorted(incidents.items())
     ]
-
 
 
 def ensure_label() -> None:

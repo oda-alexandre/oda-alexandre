@@ -56,7 +56,7 @@ class GitLabProvider:
         self._contributed_projects_cache: list[JsonObject] | None = None
 
     @classmethod
-    def from_environment(cls) -> "GitLabProvider":
+    def from_environment(cls) -> GitLabProvider:
         username = (
             os.environ.get("GITLAB_PROFILE_USERNAME", "").strip()
             or os.environ.get("CI_PROJECT_ROOT_NAMESPACE", "").strip()
@@ -472,4 +472,8 @@ class GitLabProvider:
         # publication credential-free instead of introducing a persistent token
         # merely to render COMMUNITY. Unsupported data is omitted, not degraded.
         del health
+        if self.supports_community:
+            raise RuntimeError(
+                "GitLab community support requires authenticated Users API access"
+            )
         return None

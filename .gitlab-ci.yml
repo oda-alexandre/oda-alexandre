@@ -1,0 +1,370 @@
+# SPDX-FileCopyrightText: 2024-2026 ODA Alexandre
+# SPDX-License-Identifier: EUPL-1.2+
+
+workflow:
+  name: "Publish GitLab profile"
+  rules:
+    # Scheduled refreshes stay on GitLab-hosted compute so the profile can update
+    # even when the project-local runner is intentionally offline.
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      variables:
+        RUNNER_ROUTING_TAG: "saas-linux-small-amd64"
+
+    # Source validation and publication on dev use the project-local runner and
+    # therefore do not consume GitLab.com hosted-runner compute minutes.
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "dev"'
+      variables:
+        RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
+
+    # Release tags are source refs and must pass the same cryptographic gate.
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$/'
+      variables:
+        RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
+
+    # Manual validation runs use the project-local runner as well.
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      variables:
+        RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
+
+    - when: never
+
+default:
+  interruptible: true
+  retry: 1
+  timeout: 10m
+  tags:
+    - $RUNNER_ROUTING_TAG
+
+stages:
+  - verify
+  - test
+  - publish
+
+variables:
+  GIT_DEPTH: "0"
+  GIT_STRATEGY: "clone"
+  GIT_TERMINAL_PROMPT: "0"
+  PROFILE_FORGE: "gitlab"
+  PYTHONDONTWRITEBYTECODE: "1"
+  SOURCE_BRANCH: "dev"
+
+verify_signature:
+  stage: verify
+  image: "debian:trixie-slim@sha256:38a76d01668772e381ad2826d876627c89e7133e2f8a0f5d567306798b0f2a16"
+  before_script:
+    - |
+      set -eu
+      if [ "$CI_PIPELINE_SOURCE" = "schedule" ]; then
+        apt-get update -qq
+        apt-get install --no-install-recommends -y -qq gnupg git curl ca-certificates
+        rm -rf /var/lib/apt/lists/*
+      else
+        for command_name in git gpg curl; do
+          command -v "$command_name" >/dev/null 2>&1 || {
+            echo "ERROR: local shell runner is missing required command: $command_name" >&2
+            exit 1
+          }
+        done
+      fi
+  script:
+    - |
+      set -euo pipefail
+
+      fail() {
+        echo "ERROR: $*" >&2
+        exit 1
+      }
+
+      EXPECTED_FPR="$(
+        printf '%s' "${AUTHORIZED_GPG_FINGERPRINT:?AUTHORIZED_GPG_FINGERPRINT is required}" |
+          tr -d '[:space:]' |
+          tr '[:lower:]' '[:upper:]'
+      )"
+      case "$EXPECTED_FPR" in
+        ''|*[!0-9A-F]*) fail "AUTHORIZED_GPG_FINGERPRINT is not a hexadecimal fingerprint." ;;
+      esac
+      if [ "${#EXPECTED_FPR}" -ne 40 ] && [ "${#EXPECTED_FPR}" -ne 64 ]; then
+        fail "AUTHORIZED_GPG_FINGERPRINT must contain a full 40- or 64-hex-character fingerprint."
+      fi
+
+      GNUPGHOME="$(mktemp -d)"
+      PUBLIC_KEY_FILE="$GNUPGHOME/profile-owner.gpg"
+      export GNUPGHOME
+      chmod 700 "$GNUPGHOME"
+      trap 'rm -rf "$GNUPGHOME"' EXIT HUP INT TERM
+
+      echo "[*] Fetching the profile owner's public GPG key from GitLab..."
+      curl \
+        --proto '=https' \
+        --tlsv1.2 \
+        --fail \
+        --silent \
+        --show-error \
+        --location \
+        "${CI_SERVER_URL}/${CI_PROJECT_ROOT_NAMESPACE}.gpg" \
+        --output "$PUBLIC_KEY_FILE"
+
+      if ! gpg \
+        --batch \
+        --with-colons \
+        --import-options show-only \
+        --import "$PUBLIC_KEY_FILE" 2>/dev/null |
+        awk -F: '$1 == "fpr" { print toupper($10) }' |
+        grep -Fxq "$EXPECTED_FPR"; then
+        fail "The GitLab public key endpoint does not contain the authorized fingerprint."
+      fi
+
+      gpg --batch --import "$PUBLIC_KEY_FILE" >/dev/null 2>&1
+      git config --global --add safe.directory "$CI_PROJECT_DIR"
+
+      verify_git_object() {
+        object_type="$1"
+        object_name="$2"
+        status_file="$(mktemp)"
+
+        echo "[*] Verifying ${object_type} ${object_name}..."
+        if [ "$object_type" = "tag" ]; then
+          if ! git verify-tag --raw "$object_name" >"$status_file" 2>&1; then
+            cat "$status_file" >&2
+            rm -f "$status_file"
+            fail "Invalid or missing GPG signature on tag ${object_name}."
+          fi
+        else
+          if ! git verify-commit --raw "$object_name" >"$status_file" 2>&1; then
+            cat "$status_file" >&2
+            rm -f "$status_file"
+            fail "Invalid or missing GPG signature on commit ${object_name}."
+          fi
+        fi
+
+        signer_fpr="$(
+          awk '
+            /\[GNUPG:\] VALIDSIG / {
+              candidate = $NF
+              if (length(candidate) != 40 && length(candidate) != 64) {
+                candidate = $3
+              }
+              print toupper(candidate)
+              exit
+            }
+          ' "$status_file"
+        )"
+        rm -f "$status_file"
+
+        [ -n "$signer_fpr" ] || fail "No VALIDSIG fingerprint returned for ${object_type} ${object_name}."
+        [ "$signer_fpr" = "$EXPECTED_FPR" ] || fail \
+          "${object_type} ${object_name} was signed by ${signer_fpr}, expected ${EXPECTED_FPR}."
+      }
+
+      ZERO_SHA="0000000000000000000000000000000000000000"
+
+      if [ -n "${CI_COMMIT_TAG:-}" ]; then
+        # A release is valid only when both the annotated tag object and its
+        # target source commit are signed by the authorized profile-owner key.
+        verify_git_object tag "$CI_COMMIT_TAG"
+        verify_git_object commit "$CI_COMMIT_SHA"
+      elif [ "$CI_PIPELINE_SOURCE" = "push" ] && \
+           [ -n "${CI_COMMIT_BEFORE_SHA:-}" ] && \
+           [ "$CI_COMMIT_BEFORE_SHA" != "$ZERO_SHA" ]; then
+        # Validate every commit introduced by a dev push, not only the new tip.
+        # This catches unsigned commits hidden behind a signed merge commit.
+        git merge-base --is-ancestor "$CI_COMMIT_BEFORE_SHA" "$CI_COMMIT_SHA" || \
+          fail "Non-fast-forward source update detected."
+        git rev-list --reverse "$CI_COMMIT_BEFORE_SHA..$CI_COMMIT_SHA" |
+          while IFS= read -r commit_sha; do
+            [ -n "$commit_sha" ] && verify_git_object commit "$commit_sha"
+          done
+      else
+        # Schedules and manual runs have no meaningful before-SHA range. The
+        # source tip itself must still be signed before publication can proceed.
+        verify_git_object commit "$CI_COMMIT_SHA"
+      fi
+
+      echo "[ok] Authorized GPG signatures validated."
+
+# Secret scanning is useful on source-changing pipelines, but deliberately skipped
+# on daily schedules because the source tree has not changed and the schedule uses
+# GitLab-hosted compute.
+test_secrets:
+  stage: test
+  needs:
+    - job: verify_signature
+      artifacts: false
+  script:
+    - |
+      set -eu
+      command -v gitleaks >/dev/null 2>&1 || {
+        echo "ERROR: local shell runner is missing required command: gitleaks" >&2
+        exit 1
+      }
+      gitleaks detect --source . -v
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - when: on_success
+
+publish_profile:
+  stage: publish
+  image: "python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e"
+  resource_group: gitlab-profile-main
+  interruptible: false
+  timeout: 10m
+  needs:
+    - job: verify_signature
+      artifacts: false
+    - job: test_secrets
+      artifacts: false
+      optional: true
+  before_script:
+    - |
+      set -eu
+      if [ "$CI_PIPELINE_SOURCE" = "schedule" ]; then
+        apt-get update -qq
+        apt-get install --no-install-recommends -y -qq git rsync ca-certificates
+        rm -rf /var/lib/apt/lists/*
+      else
+        for command_name in git rsync python3; do
+          command -v "$command_name" >/dev/null 2>&1 || {
+            echo "ERROR: local shell runner is missing required command: $command_name" >&2
+            exit 1
+          }
+        done
+      fi
+  script:
+    - |
+      set -eu
+
+      require_variable() {
+        variable_name="$1"
+        variable_value="$(printenv "$variable_name" 2>/dev/null || true)"
+        if [ -z "$variable_value" ]; then
+          echo "ERROR: $variable_name is required for GitLab profile publication." >&2
+          exit 1
+        fi
+      }
+
+      require_variable CI_JOB_TOKEN
+      require_variable CI_REPOSITORY_URL
+      require_variable CI_PROJECT_ROOT_NAMESPACE
+      require_variable HTB_TOKEN
+      require_variable HACKERONE_API_TOKEN
+
+      if [ "$CI_PROJECT_NAME" != "$CI_PROJECT_ROOT_NAMESPACE" ]; then
+        echo "ERROR: GitLab profile project path must match the profile username." >&2
+        echo "Project: $CI_PROJECT_PATH" >&2
+        exit 1
+      fi
+
+      PUBLISH_DIR="$CI_BUILDS_DIR/profile-publish-$CI_JOB_ID"
+      HEALTH_FILE="$CI_PROJECT_DIR/.profile-health.gitlab.json"
+
+      cleanup() {
+        git worktree remove "$PUBLISH_DIR" --force >/dev/null 2>&1 || true
+        rm -rf "$PUBLISH_DIR"
+        rm -f "$HEALTH_FILE"
+      }
+      trap cleanup EXIT HUP INT TERM
+
+      git fetch origin --prune \
+        "+refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH" \
+        '+refs/heads/main:refs/remotes/origin/main'
+
+      # Always publish from the canonical source branch rather than from the
+      # triggering ref. Tag, schedule, and manual pipelines therefore render the
+      # same source tree as a dev pipeline.
+      git checkout --detach "origin/$SOURCE_BRANCH"
+
+      rm -rf "$PUBLISH_DIR"
+      git worktree add --detach "$PUBLISH_DIR" origin/main
+      git -C "$PUBLISH_DIR" config user.name "gitlab-ci[bot]"
+      git -C "$PUBLISH_DIR" config user.email "gitlab-ci@${CI_SERVER_HOST}"
+
+      # Preserve the source commit graph without copying source-only files into
+      # the published main tree. Refuse to join unrelated histories silently; the
+      # current publication branch must already belong to the shared source graph.
+      if ! git -C "$PUBLISH_DIR" merge-base "origin/$SOURCE_BRANCH" HEAD >/dev/null 2>&1; then
+        echo "ERROR: GitLab main and dev do not share publication history." >&2
+        exit 1
+      fi
+      if ! git -C "$PUBLISH_DIR" merge-base --is-ancestor "origin/$SOURCE_BRANCH" HEAD; then
+        git -C "$PUBLISH_DIR" merge \
+          --no-commit \
+          --no-ff \
+          -s ours \
+          "origin/$SOURCE_BRANCH"
+      fi
+
+      rm -f \
+        "$PUBLISH_DIR/README.template" \
+        "$PUBLISH_DIR/README.template.md" \
+        "$PUBLISH_DIR/profile.config.toml"
+
+      rsync -a --delete \
+        --exclude '.git' \
+        --exclude 'README.md' \
+        --exclude 'README.template' \
+        --exclude 'README.template.md' \
+        --exclude 'profile.config.toml' \
+        --exclude 'assets/generated/' \
+        ./ "$PUBLISH_DIR"/
+
+      (
+        cd "$PUBLISH_DIR"
+        README_TEMPLATE="$CI_PROJECT_DIR/README.template" \
+        PROFILE_CONFIG="$CI_PROJECT_DIR/profile.config.toml" \
+        PROFILE_HEALTH_FILE="$HEALTH_FILE" \
+        python3 scripts/update_readme.py
+      )
+
+      test -f "$PUBLISH_DIR/README.md"
+      test ! -e "$PUBLISH_DIR/README.template"
+      test ! -e "$PUBLISH_DIR/README.template.md"
+      test ! -e "$PUBLISH_DIR/profile.config.toml"
+      test -f "$PUBLISH_DIR/assets/separator.gif"
+      test -f "$PUBLISH_DIR/assets/badges/contact/website.svg"
+      test -f "$PUBLISH_DIR/assets/badges/contact/linkedin.svg"
+      test -f "$PUBLISH_DIR/assets/badges/contact/github.svg"
+      test -f "$PUBLISH_DIR/assets/badges/contact/gitlab.svg"
+      test -f "$PUBLISH_DIR/assets/badges/contact/gpg-public-key.svg"
+      test -f "$PUBLISH_DIR/LICENSE"
+      test -f "$PUBLISH_DIR/NOTICE"
+
+      PUBLISH_DIR="$PUBLISH_DIR" python3 - <<'PY'
+      import os
+      import re
+      from pathlib import Path
+
+      publish_dir = Path(os.environ["PUBLISH_DIR"])
+      readme = (publish_dir / "README.md").read_text(encoding="utf-8")
+      references = set(
+          re.findall(r'\./assets/generated/([^?"\')]+\.svg)', readme)
+      )
+      missing = sorted(
+          name
+          for name in references
+          if not (publish_dir / "assets/generated" / name).is_file()
+      )
+      if missing:
+          raise SystemExit(
+              "README references missing generated assets: " + ", ".join(missing)
+          )
+      if "temporarily unavailable" in readme.lower():
+          raise SystemExit("Public README contains an internal availability placeholder")
+      PY
+
+      git -C "$PUBLISH_DIR" add -A
+      git -C "$PUBLISH_DIR" add -f README.md assets/generated/
+
+      MERGE_HEAD_PATH="$(git -C "$PUBLISH_DIR" rev-parse --git-path MERGE_HEAD)"
+      if git -C "$PUBLISH_DIR" diff --cached --quiet && [ ! -f "$MERGE_HEAD_PATH" ]; then
+        echo "Published GitLab profile is already up to date."
+        exit 0
+      fi
+
+      git -C "$PUBLISH_DIR" commit -m "chore(readme): publish GitLab profile"
+      git -C "$PUBLISH_DIR" merge-base --is-ancestor "origin/$SOURCE_BRANCH" HEAD
+
+      # CI_REPOSITORY_URL is a predefined, per-job HTTPS clone URL containing
+      # CI_JOB_TOKEN. The token exists only for this job and GitLab masks it in
+      # logs. Project settings must explicitly allow same-project job-token pushes.
+      git -C "$PUBLISH_DIR" push "$CI_REPOSITORY_URL" HEAD:main
