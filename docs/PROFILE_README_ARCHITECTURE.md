@@ -56,7 +56,6 @@ nearby card.
 | `data-label` | primary text that belongs to chart geometry | follows data geometry |
 | `data-meta` | secondary chart value/axis/legend text | follows data geometry |
 | `meta` | tertiary contextual information | normally centered in narrative cards |
-| `action-label` | compact status/CTA such as `CONTRIBUTED` | centered unless action geometry requires otherwise |
 | `connector-label` | workflow transition label | tied to connector geometry |
 
 `section-title` and `section-lead` are rendered by GitHub Markdown/HTML.
@@ -164,13 +163,17 @@ Display only information that helps a reviewer understand the project quickly:
 - project name (`card-title`)
 - project description (`card-description`)
 - primary language + stars (`meta`)
-- `CONTRIBUTED` only when the normalized project represents work in another
-  account/namespace
 
-Do not render topics, forks, or timestamps merely because a forge API exposes
-them. GitHub pinning and the GitLab `profile-featured` topic are selection
-mechanisms, not card metadata, and no second hand-maintained project list belongs
-in repository configuration.
+Project provenance is a selection concern, not a visual card variant. Personal,
+group/subgroup, and other explicitly selected contributed projects therefore use
+the same card hierarchy and geometry. Keep `FeaturedProject.contributed` as
+provider metadata when it is useful to selection/fallback logic, but do not expose
+a `CONTRIBUTED` badge or any other ownership/status treatment in the public card.
+
+Do not render topics, forks, timestamps, ownership badges, or contribution labels
+merely because a forge API exposes them. GitHub pinning and the GitLab
+`profile-featured` topic are selection mechanisms, not card metadata, and no
+second hand-maintained project list belongs in repository configuration.
 
 ### C. Certification card
 

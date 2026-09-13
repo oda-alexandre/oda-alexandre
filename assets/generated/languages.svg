@@ -27,7 +27,6 @@
   .activity-third { fill: #104d50; }
   .activity-fourth { fill: #116466; }
 }
-.action-label { fill: #116466; font-size: 10px; font-weight: 700; letter-spacing: 0.65px; }
 .connector-label { fill: #116466; font-size: 10.0px; font-weight: 700; letter-spacing: 0.50px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }</style>
   <rect x="5" y="5" width="710" height="220" rx="7" fill="none" stroke="#116466" stroke-width="4" stroke-opacity="0.20" filter="url(#softGlow)"/><rect x="0" y="0" width="720" height="230" rx="12" fill="#ffffff" fill-opacity="0.00" stroke="#116466" stroke-width="1.6" stroke-opacity="0.90"/>
   <text class="data-label" x="30" y="122">Python</text><text class="data-meta" x="690" y="122" text-anchor="end">100.0%</text><rect x="30" y="132" width="570.0" height="7" rx="3.5" class="theme-track" fill-opacity="0.42"/><rect x="30" y="132" width="570.0" height="7" rx="3.5" fill="url(#languageBarFill)" opacity="1.00"/><rect x="31.0" y="133.0" width="568.0" height="1.6" rx="0.8" class="theme-text" fill-opacity="0.18"/>

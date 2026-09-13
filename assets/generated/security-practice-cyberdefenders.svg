@@ -27,7 +27,6 @@
   .activity-third { fill: #104d50; }
   .activity-fourth { fill: #116466; }
 }
-.action-label { fill: #116466; font-size: 10px; font-weight: 700; letter-spacing: 0.65px; }
 .connector-label { fill: #116466; font-size: 10.0px; font-weight: 700; letter-spacing: 0.50px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }</style>
   <rect x="5" y="5" width="210" height="146" rx="7" fill="none" stroke="#116466" stroke-width="4" stroke-opacity="0.20" filter="url(#softGlow)"/><rect x="0" y="0" width="220" height="156" rx="12" fill="#ffffff" fill-opacity="0.00" stroke="#116466" stroke-width="1.6" stroke-opacity="0.90"/>
   <text class="card-title" x="110.0" y="28" text-anchor="middle">CYBERDEFENDERS</text><text class="card-description" x="110.0" y="48" text-anchor="middle">Blue Team · DFIR</text><line x1="39.6" y1="61" x2="180.4" y2="61" stroke="#116466" stroke-opacity="0.50"/><text class="status-value" x="110.0" y="88" text-anchor="middle">Rookie</text><rect x="30.0" y="108" width="160.0" height="7" rx="3.5" class="theme-track" fill-opacity="0.72"/><rect x="30.0" y="108" width="0.0" height="7" rx="3.5" fill="#116466" fill-opacity="0.92"/><text class="meta" x="110.0" y="137" text-anchor="middle">0% avg. skill progress</text>
