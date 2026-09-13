@@ -42,7 +42,7 @@
 
 <!-- SECTION:DEVELOPMENT-WORKFLOW:CONTENT:START -->
 <p align="center">
-  <img src="./assets/generated/development-workflow.svg?v=785af5afda66" alt="Development Workflow">
+  <img src="./assets/generated/development-workflow.svg?v=625994ba55e5" alt="Development Workflow">
 </p>
 <!-- SECTION:DEVELOPMENT-WORKFLOW:CONTENT:END -->
 
@@ -58,7 +58,7 @@
 
 <!-- SECTION:FEATURED-PROJECTS:CONTENT:START -->
 <p align="center">
-  <a href="https://github.com/oda-alexandre/oda-alexandre"><img src="./assets/generated/featured-project-oda-alexandre-oda-alexandre-edb322b4.svg?v=1bc0295b0010" alt="Featured project: oda-alexandre" width="340"></a>
+  <a href="https://github.com/oda-alexandre/oda-alexandre"><img src="./assets/generated/featured-project-oda-alexandre-oda-alexandre-edb322b4.svg?v=5bf5f58edcf0" alt="Featured project: oda-alexandre" width="340"></a>
 </p>
 <!-- SECTION:FEATURED-PROJECTS:CONTENT:END -->
 
@@ -74,8 +74,8 @@
 
 <!-- SECTION:SECURITY-PRACTICE:CONTENT:START -->
 <p align="center">
-  <a href="https://profile.hackthebox.com/profile/01a0193e-ee03-716d-a699-81f553d6548a"><img src="./assets/generated/security-practice-hack-the-box.svg?v=7a09e4b33982" alt="HACK THE BOX profile" width="220"></a>
-  <a href="https://cyberdefenders.org/p/maitreoda"><img src="./assets/generated/security-practice-cyberdefenders.svg?v=83a9956578e3" alt="CYBERDEFENDERS profile" width="220"></a>
+  <a href="https://profile.hackthebox.com/profile/01a0193e-ee03-716d-a699-81f553d6548a"><img src="./assets/generated/security-practice-hack-the-box.svg?v=c7d36bcc1898" alt="HACK THE BOX profile" width="220"></a>
+  <a href="https://cyberdefenders.org/p/maitreoda"><img src="./assets/generated/security-practice-cyberdefenders.svg?v=4d11ffb2b1ef" alt="CYBERDEFENDERS profile" width="220"></a>
 </p>
 <!-- SECTION:SECURITY-PRACTICE:CONTENT:END -->
 
@@ -91,7 +91,7 @@
 
 <!-- SECTION:MOST-USED-LANGUAGES:CONTENT:START -->
 <p align="center">
-  <img src="./assets/generated/languages.svg?v=0f576161ec89" alt="Most Used Languages">
+  <img src="./assets/generated/languages.svg?v=839a1e24b648" alt="Most Used Languages">
 </p>
 <!-- SECTION:MOST-USED-LANGUAGES:CONTENT:END -->
 
@@ -107,11 +107,11 @@
 
 <!-- SECTION:GITHUB-STATS:CONTENT:START -->
 <p align="center">
-  <img src="./assets/generated/github-stats.svg?v=a93f0f25a92e" alt="GitHub Stats">
+  <img src="./assets/generated/github-stats.svg?v=e1d785388165" alt="GitHub Stats">
 </p>
 
 <p align="center">
-  <img src="./assets/generated/github-activity.svg?v=703bcd1111be" alt="GitHub Activity · 365 Days">
+  <img src="./assets/generated/github-activity.svg?v=59ecd498d46a" alt="GitHub Activity · 365 Days">
 </p>
 <!-- SECTION:GITHUB-STATS:CONTENT:END -->
 

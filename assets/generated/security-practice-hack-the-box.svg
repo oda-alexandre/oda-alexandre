@@ -8,6 +8,7 @@
 .status-value { fill: #24292f; font-size: 17px; font-weight: 600; }
 .data-label { fill: #24292f; font-size: 15px; font-weight: 600; }
 .data-meta { fill: #57606a; font-size: 13px; font-weight: 400; }
+.activity-axis { fill: #57606a; font-size: 11px; font-weight: 400; }
 .meta { fill: #57606a; font-size: 11px; font-weight: 400; }
 .theme-text { fill: #24292f; }
 .theme-track { fill: #d0d7de; }
@@ -18,7 +19,7 @@
 .activity-fourth { fill: #116466; }
 @media (prefers-color-scheme: dark) {
   .card-title, .metric-value, .status-value, .data-label, .theme-text { fill: #f0f6fc; }
-  .card-description, .metric-label, .data-meta, .meta { fill: #8b949e; }
+  .card-description, .metric-label, .data-meta, .meta, .activity-axis { fill: #8b949e; }
   .theme-track { fill: #21262d; }
   .activity-none { fill: #21262d; }
   .activity-first { fill: #0e282d; }
