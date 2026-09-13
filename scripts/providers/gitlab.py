@@ -530,22 +530,79 @@ class GitLabProvider:
         )
         return ordered
 
-    def _featured_candidates(self, repositories: list[JsonObject]) -> list[JsonObject]:
-        eligible = [
+    @staticmethod
+    def _has_featured_topic(repository: JsonObject) -> bool:
+        """Return whether a GitLab project explicitly opts into profile featuring."""
+        raw_topics = repository.get("topics")
+        topics = raw_topics if is_json_array(raw_topics) else []
+        normalized = {str(topic).strip().casefold() for topic in topics}
+        return FEATURED_TOPIC in normalized
+
+    @staticmethod
+    def _is_group_project(repository: JsonObject) -> bool:
+        """Return whether a project belongs to a group or subgroup namespace."""
+        namespace = repository.get("namespace")
+        return (
+            is_json_object(namespace)
+            and str(namespace.get("kind") or "").strip().casefold() == "group"
+        )
+
+    @staticmethod
+    def _featured_identity(repository: JsonObject) -> str:
+        """Return a stable key used to deduplicate personal and contributed projects."""
+        project_id = repository.get("id")
+        if project_id is not None:
+            return f"id:{project_id}"
+        path = str(repository.get("path_with_namespace") or "").strip().casefold()
+        return f"path:{path}" if path else ""
+
+    def _featured_candidates(
+        self,
+        repositories: list[JsonObject],
+        contributed_projects: list[JsonObject],
+    ) -> list[JsonObject]:
+        personal_eligible = [
             repository
             for repository in repositories
             if not self._is_fork(repository)
             and repository.get("name")
             and repository.get("web_url")
         ]
-        tagged: list[JsonObject] = []
-        for repository in eligible:
-            raw_topics = repository.get("topics")
-            topics = raw_topics if is_json_array(raw_topics) else []
-            normalized = {str(topic).strip().casefold() for topic in topics}
-            if FEATURED_TOPIC in normalized:
-                tagged.append(repository)
-        candidates = tagged or eligible
+
+        # Preserve the established personal-project contract: explicit topics take
+        # precedence, otherwise all eligible personal projects form the fallback.
+        personal_tagged = [
+            repository
+            for repository in personal_eligible
+            if self._has_featured_topic(repository)
+        ]
+        personal_candidates = personal_tagged or personal_eligible
+
+        # GitLab has no profile pinning equivalent for group projects. The public
+        # contributed-projects endpoint supplies group/subgroup projects the user
+        # worked on during the past year; require an explicit topic so unrelated
+        # external contributions never appear automatically.
+        group_candidates = [
+            repository
+            for repository in contributed_projects
+            if str(repository.get("visibility") or "").strip().casefold() == "public"
+            and self._is_group_project(repository)
+            and not self._is_fork(repository)
+            and repository.get("name")
+            and repository.get("web_url")
+            and self._has_featured_topic(repository)
+        ]
+
+        candidates: list[JsonObject] = []
+        seen: set[str] = set()
+        for repository in [*personal_candidates, *group_candidates]:
+            identity = self._featured_identity(repository)
+            if identity and identity in seen:
+                continue
+            if identity:
+                seen.add(identity)
+            candidates.append(repository)
+
         return self._sort_featured_candidates(candidates)[:6]
 
     def _primary_language(
@@ -571,8 +628,20 @@ class GitLabProvider:
         repositories = self.repositories(health)
         if repositories is None:
             return None
+
+        # Group featuring is additive. If the contributed-projects endpoint fails,
+        # keep healthy personal project cards and surface only the missing extension.
+        try:
+            contributed_projects = self._contributed_projects()
+        except Exception as exc:  # noqa: BLE001
+            health.add("GitLab featured group projects", exc)
+            contributed_projects = []
+
         projects: list[FeaturedProject] = []
-        for repository in self._featured_candidates(repositories):
+        for repository in self._featured_candidates(
+            repositories,
+            contributed_projects,
+        ):
             name = str(repository.get("name") or "").strip()
             url = self._normalize_url(str(repository.get("web_url") or ""))
             if not name or not url:
@@ -592,7 +661,7 @@ class GitLabProvider:
                     owner=owner,
                     primary_language=self._primary_language(repository, health),
                     stars=int(repository.get("star_count") or 0),
-                    contributed=False,
+                    contributed=self._is_group_project(repository),
                 )
             )
         return projects
