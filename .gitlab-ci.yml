@@ -463,6 +463,5 @@ report_profile_health:
     PROFILE_HEALTH_FILE: "$CI_PROJECT_DIR/.profile-health.gitlab.json"
     GITLAB_PROFILE_HEALTH_API_URL: "$CI_API_V4_URL"
     GITLAB_PROFILE_HEALTH_PROJECT: "$CI_PROJECT_PATH"
-    GITLAB_PROFILE_HEALTH_ASSIGNEE: "$CI_PROJECT_ROOT_NAMESPACE"
   script:
     - python3 scripts/report_profile_health.py
