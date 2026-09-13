@@ -429,9 +429,11 @@ automation runs on GitHub.
   The reporter marks synthetic issues explicitly and refuses to overwrite a real
   open incident from a self-test.
 - on GitHub, select the `profile_health_test` input in `Publish Profile README`.
-  On GitLab, start a manual pipeline on protected `dev` with the CI/CD variable
-  `PROFILE_HEALTH_TEST_CASE` set to one of the three self-test cases. Leave the
-  input/variable unset (`none` on GitHub) for normal operation.
+  On GitLab, start a manual pipeline on protected `dev` and select the typed
+  `profile_health_test` pipeline input. It defaults to `none`; choose one of the
+  three self-test cases only for an explicit health probe. Pipeline inputs are
+  preferred over ad-hoc pipeline variables so invalid values are rejected before
+  the pipeline is created.
 
 Do not weaken issue de-duplication, merge the two forge states into one issue, or
 let one forge close the other forge's active incident.
