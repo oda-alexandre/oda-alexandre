@@ -394,11 +394,22 @@ automation runs on GitHub.
   issue, preserving an incident history instead of reopening one issue forever.
 - the reporter owns and reconciles the project labels `health::incident`,
   `forge::github`, and `forge::gitlab`. Each managed issue carries the global
-  health label plus exactly one forge-scoped label.
+  health label plus exactly one forge-scoped label. Reporter updates preserve all
+  unrelated labels so human or automation triage state (for example future Codex
+  workflow labels) is not erased; only Profile Health-owned label membership is
+  reconciled.
 - managed issues are confidential and intentionally left **unassigned**. This avoids
   creating stale personal GitLab To-Do items when the service account later closes a
   recovered incident. Maintainer notification is handled by the project's GitLab
   notification settings instead of issue assignment.
+- issue notifications are the primary maintainer signal, but Profile Health cannot
+  create an issue when its own API credential or reporting path is broken. Keep at
+  least one out-of-band CI failure-notification path enabled; GitLab `Pipeline fails`
+  is the required fallback for the canonical pipeline, and GitHub Actions failure-only
+  notifications are a useful supplementary signal. Route those messages to the same
+  operations mailbox/label. Do not mark the reporting jobs `allow_failure` /
+  `continue-on-error`, because their non-zero status is what makes that fallback
+  observable.
 - GitHub Actions separates publication from health reporting. The publication
   job exports step outcomes plus a Base64 copy of the small generator health
   report; a distinct `if: always()` job sends those signals to GitLab. This means
@@ -427,7 +438,10 @@ automation runs on GitHub.
   break an external dependency. GitHub skips the publication job for a self-test;
   GitLab skips signature/test/publication jobs and runs only the SaaS watchdog.
   The reporter marks synthetic issues explicitly and refuses to overwrite a real
-  open incident from a self-test.
+  open incident from a self-test. Normal healthy runs leave an active synthetic
+  issue untouched until explicit self-test recovery; if a real incident appears
+  during a probe, the synthetic episode is closed as superseded before a separate
+  real incident is created.
 - on GitHub, select the `profile_health_test` input in `Publish Profile README`.
   On GitLab, start a manual pipeline on protected `dev` and select the typed
   `profile_health_test` pipeline input. It defaults to `none`; choose one of the

@@ -619,8 +619,20 @@ def is_self_test_issue(issue: JsonObject) -> bool:
     return isinstance(description, str) and SELF_TEST_MARKER in description
 
 
+def issue_labels(issue: JsonObject, managed_labels: tuple[str, str]) -> tuple[str, ...]:
+    """Preserve non-Profile-Health labels while reconciling owned labels."""
+    raw_labels = issue.get("labels")
+    current_labels = (
+        [label for label in cast(JsonArray, raw_labels) if isinstance(label, str)]
+        if isinstance(raw_labels, list)
+        else []
+    )
+    owned_labels = {GLOBAL_LABEL.name, *(spec.name for spec in FORGE_LABELS.values())}
+    preserved = [label for label in current_labels if label not in owned_labels]
+    return tuple(dict.fromkeys([*preserved, *managed_labels]))
 
-def create_issue(title: str, body: str, labels: tuple[str, str]) -> None:
+
+def create_issue(title: str, body: str, labels: tuple[str, ...]) -> None:
     payload: JsonObject = {
         "title": title,
         "description": body,
@@ -635,7 +647,7 @@ def update_issue(
     *,
     title: str,
     body: str,
-    labels: tuple[str, str],
+    labels: tuple[str, ...],
 ) -> None:
     api(
         "PUT",
@@ -663,6 +675,23 @@ def recover(issue: JsonObject) -> None:
     add_note(iid, message)
     api("PUT", project_path(f"/issues/{iid}"), {"state_event": "close"})
     print(f"Closed recovered {FORGE_DISPLAY[FORGE]} Profile Health issue #{iid}.")
+
+
+def supersede_self_test(issue: JsonObject) -> None:
+    """Close a synthetic probe before opening a separate real incident."""
+    iid = _issue_iid(issue)
+    run_kind, url, _, _ = run_metadata()
+    message = (
+        "Controlled self-test closed automatically because a real Profile Health "
+        "incident was detected. The real incident is tracked separately."
+    )
+    if url:
+        message += f" [{run_kind}]({url})"
+    add_note(iid, message)
+    api("PUT", project_path(f"/issues/{iid}"), {"state_event": "close"})
+    print(
+        f"Closed superseded {FORGE_DISPLAY[FORGE]} Profile Health self-test issue #{iid}."
+    )
 
 
 def _assert_self_test_issue_compatible(issue: JsonObject | None) -> None:
@@ -699,7 +728,12 @@ def _report_incidents(
         if url:
             message += f" [{run_kind}]({url})"
         add_note(iid, message)
-    update_issue(iid, title=title, body=body, labels=labels)
+    update_issue(
+        iid,
+        title=title,
+        body=body,
+        labels=issue_labels(issue, labels),
+    )
     print(f"Updated {FORGE_DISPLAY[FORGE]} Profile Health issue #{iid}.")
 
 
@@ -715,6 +749,20 @@ def main() -> None:
     incidents = load_incidents()
     issue = open_health_issue(labels)
     _assert_self_test_issue_compatible(issue)
+
+    # A normal production run must not accidentally complete or rewrite a
+    # controlled self-test that is waiting for its explicit next probe. If a real
+    # incident appears during that probe, close the synthetic episode first and
+    # create a separate real incident so operational history stays unambiguous.
+    if not _self_test_requested() and issue is not None and is_self_test_issue(issue):
+        if not incidents:
+            print(
+                f"{FORGE_DISPLAY[FORGE]} Profile Health is clean; active self-test "
+                "issue left open for explicit recovery."
+            )
+            return
+        supersede_self_test(issue)
+        issue = None
 
     if incidents:
         _report_incidents(incidents, issue, labels)
