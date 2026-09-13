@@ -3,10 +3,12 @@
 
 """GitLab data provider for the profile README generator.
 
-Public GitLab REST endpoints provide the professional profile without a
-persistent credential. The provider deliberately does not use a personal,
-project, or group access token; GitLab CI's native CI_JOB_TOKEN is reserved for
-workflow operations whose endpoints explicitly support it.
+Public GitLab endpoints provide the professional profile without a persistent
+credential. Most data comes from REST; contribution rhythm comes from the same
+public profile-calendar JSON route used by GitLab's profile UI. The provider
+deliberately does not use a personal, project, or group access token; GitLab
+CI's native CI_JOB_TOKEN is reserved for workflow operations whose endpoints
+explicitly support it.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from urllib.parse import quote, urlencode, urlparse
 
 from .base import (
     CommunitySnapshot,
+    ContributionDay,
     ContributionSnapshot,
     FeaturedProject,
     ForgeMetric,
@@ -43,7 +46,7 @@ class GitLabProvider:
 
     key = "gitlab"
     display_name = "GitLab"
-    supports_activity = False
+    supports_activity = True
     supports_community = False
     language_asset_stem = "gitlab-languages"
     featured_summary_label = "featured projects"
@@ -100,6 +103,29 @@ class GitLabProvider:
             body = exc.read().decode("utf-8", errors="replace")[:500]
             raise RuntimeError(
                 f"GitLab API HTTP {exc.code} for /{path.lstrip('/')}: {body}"
+            ) from exc
+
+    def _public_profile_json(self, path: str) -> JsonContainer:
+        """Fetch one JSON route from the GitLab web origin without credentials."""
+        parsed_api = urlparse(self._api_base_url)
+        api_path = parsed_api.path.rstrip("/")
+        web_path = api_path[: -len("/api/v4")] if api_path.endswith("/api/v4") else ""
+        web_base_url = f"{parsed_api.scheme}://{parsed_api.netloc}{web_path}"
+        url = f"{web_base_url}/{path.lstrip('/')}"
+        request = urllib.request.Request(
+            url,
+            headers={
+                "Accept": JSON_MEDIA_TYPE,
+                "User-Agent": f"{self.username}-profile-readme",
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")[:500]
+            raise RuntimeError(
+                f"GitLab profile HTTP {exc.code} for /{path.lstrip('/')}: {body}"
             ) from exc
 
     @staticmethod
@@ -268,14 +294,119 @@ class GitLabProvider:
             )
         return totals, not failures
 
+    @staticmethod
+    def _contribution_counts(
+        payload: JsonObject,
+        start_date: dt.date,
+        end_date: dt.date,
+    ) -> dict[dt.date, int]:
+        """Validate calendar entries and retain only the rolling display window."""
+        counts: dict[dt.date, int] = {}
+        for raw_date, raw_count in payload.items():
+            try:
+                day = dt.date.fromisoformat(str(raw_date))
+            except ValueError as exc:
+                raise ValueError(
+                    f"Invalid GitLab contribution calendar date: {raw_date!r}"
+                ) from exc
+            if isinstance(raw_count, bool) or not isinstance(raw_count, int):
+                raise TypeError(
+                    f"Invalid GitLab contribution count for {raw_date}: {raw_count!r}"
+                )
+            if raw_count < 0:
+                raise ValueError(
+                    f"Negative GitLab contribution count for {raw_date}: {raw_count}"
+                )
+            if start_date <= day <= end_date:
+                counts[day] = raw_count
+        return counts
+
+    @staticmethod
+    def _contribution_quartiles(counts: dict[dt.date, int]) -> tuple[int, int, int]:
+        """Return the three thresholds used by the shared four-level heatmap."""
+        nonzero = sorted(count for count in counts.values() if count > 0)
+        if not nonzero:
+            return 0, 0, 0
+
+        def quartile(index: int) -> int:
+            position = max(0, ((len(nonzero) * index + 3) // 4) - 1)
+            return nonzero[min(position, len(nonzero) - 1)]
+
+        return quartile(1), quartile(2), quartile(3)
+
+    @staticmethod
+    def _contribution_level(count: int, quartiles: tuple[int, int, int]) -> str:
+        """Map one daily count onto the contribution-level vocabulary."""
+        q1, q2, q3 = quartiles
+        if count <= 0:
+            return "NONE"
+        if count <= q1:
+            return "FIRST_QUARTILE"
+        if count <= q2:
+            return "SECOND_QUARTILE"
+        if count <= q3:
+            return "THIRD_QUARTILE"
+        return "FOURTH_QUARTILE"
+
+    @classmethod
+    def _contribution_weeks(
+        cls,
+        counts: dict[dt.date, int],
+        start_date: dt.date,
+        end_date: dt.date,
+    ) -> tuple[tuple[ContributionDay, ...], ...]:
+        """Build Sunday-based weeks for the shared contribution renderer."""
+        quartiles = cls._contribution_quartiles(counts)
+        week_start = start_date - dt.timedelta(days=(start_date.weekday() + 1) % 7)
+        weeks: list[tuple[ContributionDay, ...]] = []
+        cursor = week_start
+        while cursor <= end_date:
+            week = tuple(
+                ContributionDay(
+                    date=day,
+                    count=counts.get(day, 0),
+                    level=cls._contribution_level(counts.get(day, 0), quartiles),
+                    weekday=(day.weekday() + 1) % 7,
+                )
+                for offset in range(7)
+                if start_date <= (day := cursor + dt.timedelta(days=offset)) <= end_date
+            )
+            if week:
+                weeks.append(week)
+            cursor += dt.timedelta(days=7)
+        return tuple(weeks)
+
     def contribution_snapshot(
         self,
         health: HealthReporter,
     ) -> ContributionSnapshot | None:
-        # GitLab does not expose its profile contribution calendar through a
-        # supported public API. Unsupported activity is omitted, not degraded.
-        del health
-        return None
+        """Normalize GitLab's public profile calendar into the shared heatmap model.
+
+        GitLab's documented Events API requires an access token. The profile UI
+        still exposes aggregated visible contributions at
+        ``/users/<username>/calendar.json`` without a PAT. That route is not a
+        stable public API contract, so schema/network failures are surfaced to
+        Profile Health and the renderer's normal last-good fallback preserves a
+        previously generated activity card.
+        """
+        end_date = dt.datetime.now(dt.timezone.utc).date()
+        start_date = end_date - dt.timedelta(days=364)
+        try:
+            payload = self._public_profile_json(
+                f"users/{quote(self.username, safe='')}/calendar.json"
+            )
+            if not is_json_object(payload):
+                raise TypeError("Unexpected GitLab contribution calendar response")
+            counts = self._contribution_counts(payload, start_date, end_date)
+            return ContributionSnapshot(
+                total=sum(counts.values()),
+                reviews=0,
+                repositories_contributed=0,
+                weeks=self._contribution_weeks(counts, start_date, end_date),
+            )
+        except Exception as exc:  # noqa: BLE001
+            health.add("GitLab contributions", exc)
+            return None
 
     @staticmethod
     def _rolling_365_window() -> tuple[dt.datetime, dt.datetime]:

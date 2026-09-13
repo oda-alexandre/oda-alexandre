@@ -70,7 +70,7 @@ Examples:
 
 - Featured project title/description/meta -> centered.
 - Security Practice / Research / Certification cards -> centered.
-- GitHub Activity card title and contribution count -> centered.
+- Forge Activity card title and contribution count -> centered.
 - Stats KPI cells -> centered.
 - Languages: language label left, percentage right, because both describe a bar.
 - Heatmap: month/day labels and Less/More legend stay aligned to the grid.
@@ -80,9 +80,12 @@ Do not center chart axes merely for visual symmetry.
 
 ## 3. Card families
 
-All generated SVG cards share the same frame, glow, radius, color palette, and font
-family through `svg_card_frame()`, `svg_card_document()`, and
-`svg_typography_css()`.
+All generated SVG cards share the same frame, glow, radius, adaptive color
+palette, and font family through `svg_card_frame()`, `svg_card_document()`, and
+`svg_typography_css()`. Each component remains one transparent SVG. Its internal
+CSS uses `prefers-color-scheme` to select the historical light/dark foreground
+and track palettes; do not reintroduce separate `-light.svg` / `-dark.svg`
+assets.
 
 Do **not** create a second border/glow/frame style for a special card. If a card
 looks clipped or unbalanced, fix its geometry or padding instead.
@@ -212,7 +215,8 @@ streak, or a duplicate contribution count here:
 - followers belong to `COMMUNITY` when the active provider can retrieve them
   through a supported contract
 - contribution rhythm belongs to an Activity visualization only when the forge
-  exposes a supported contribution-calendar API
+  exposes a reviewed contribution-calendar source that can be validated and
+  protected by the normal last-good fallback
 - repository/project count measures quantity more than impact
 - streaks are intentionally excluded from the professional signal
 
@@ -295,13 +299,15 @@ whose endpoints explicitly support it, notably publication Git pushes once that
 project setting is enabled. It must not be treated as a general-purpose GitLab API
 token.
 
-Forge-specific cached content must never cross publication targets. Stats and
-language assets use forge-specific stems where necessary, and FEATURED PROJECTS /
-COMMUNITY cache reuse is allowed only when the existing README identifies the same
-forge through its stats section marker. GitLab activity is intentionally omitted:
-GitLab does not currently expose its profile contribution calendar through a
-supported public API, so unsupported data is not approximated or reported as an
-incident.
+Forge-specific cached content must never cross publication targets. Stats,
+language and Activity assets use forge-specific stems where necessary, and
+FEATURED PROJECTS / COMMUNITY cache reuse is allowed only when the existing README
+identifies the same forge through its stats section marker. GitLab Activity uses
+the unauthenticated profile-calendar route `/users/<username>/calendar.json`, the
+same aggregated visible-contribution source used by the profile UI. GitLab does
+not document this route as a stable public API, so its schema is validated
+strictly and any network/schema failure is a Profile Health incident handled by
+the normal last-good fallback. Do not add a persistent PAT solely for Activity.
 
 Important source-of-truth rules:
 

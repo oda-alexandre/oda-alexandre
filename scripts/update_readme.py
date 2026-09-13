@@ -97,13 +97,21 @@ PUBLISH_LABEL_LINE_GAP = 12
 
 
 @dataclass(frozen=True)
-class SvgStyle:
-    """Shared colors and visual intensities for generated SVGs."""
+class SvgPalette:
+    """One color palette embedded inside a generated SVG."""
 
     bg_color: str
     text_color: str
     muted_color: str
     track_color: str
+
+
+@dataclass(frozen=True)
+class SvgStyle:
+    """Shared visual style for one transparent, theme-adaptive SVG asset."""
+
+    light: SvgPalette
+    dark: SvgPalette
     surface_opacity: float
     border_opacity: float
     glow_opacity: float
@@ -230,13 +238,21 @@ class HealthReport:
         )
 
 
-# Shared SVG visual tokens. The transparent surface and balanced text colors keep
-# generated assets readable on supported repository surfaces.
+# Shared SVG visual tokens. Each component remains one transparent SVG while the
+# embedded palettes restore the pre-v1.1.0 foreground/track hierarchy.
 SVG_STYLE = SvgStyle(
-    bg_color="737a82",
-    text_color="747b83",
-    muted_color="747b83",
-    track_color="747b83",
+    light=SvgPalette(
+        bg_color="ffffff",
+        text_color="24292f",
+        muted_color="57606a",
+        track_color="d0d7de",
+    ),
+    dark=SvgPalette(
+        bg_color="0d1117",
+        text_color="f0f6fc",
+        muted_color="8b949e",
+        track_color="21262d",
+    ),
     surface_opacity=0.0,
     border_opacity=0.90,
     glow_opacity=0.20,
@@ -1028,30 +1044,44 @@ def svg_escape(value: object) -> str:
 
 
 def svg_typography_css(style: SvgStyle) -> str:
-    """Return semantic typography roles shared by every generated SVG card.
+    """Return semantic, theme-adaptive roles shared by every generated SVG card.
 
-    Choose a role by meaning, never by whichever size happens to look right:
-    ``card-title`` / ``card-description`` are narrative card copy;
-    ``metric-value`` / ``metric-label`` are centered numeric KPI pairs;
-    ``status-value`` is a prominent textual state such as a platform rank;
-    ``data-label`` / ``data-meta`` belong to charts where alignment follows data;
-    ``meta`` is tertiary context; ``action-label`` is a compact CTA/status.
-
-    README-level ``section-title`` and ``section-lead`` are rendered by GitHub's
-    Markdown/HTML rather than inside SVGs; their rules live in the architecture
-    document and ``render_section_lead``.
+    The SVG remains a single transparent asset. ``prefers-color-scheme`` runs
+    inside the embedded SVG and can inherit the embedding page's used color
+    scheme; the light palette remains the deterministic fallback. Direct fill
+    declarations are used instead of CSS custom properties for broad SVG-viewer
+    compatibility.
     """
+    light_activity = activity_level_colors(style.light)
+    dark_activity = activity_level_colors(style.dark)
     return (
         'text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", '
         "Roboto, Helvetica, Arial, sans-serif; }\n"
-        f".card-title {{ fill: #{style.text_color}; font-size: 15px; font-weight: 600; }}\n"
-        f".card-description {{ fill: #{style.muted_color}; font-size: 13px; font-weight: 400; }}\n"
-        f".metric-value {{ fill: #{style.text_color}; font-size: 30px; font-weight: 700; }}\n"
-        f".metric-label {{ fill: #{style.muted_color}; font-size: 13px; font-weight: 400; }}\n"
-        f".status-value {{ fill: #{style.text_color}; font-size: 17px; font-weight: 600; }}\n"
-        f".data-label {{ fill: #{style.text_color}; font-size: 15px; font-weight: 600; }}\n"
-        f".data-meta {{ fill: #{style.muted_color}; font-size: 13px; font-weight: 400; }}\n"
-        f".meta {{ fill: #{style.muted_color}; font-size: 11px; font-weight: 400; }}\n"
+        f".card-title {{ fill: #{style.light.text_color}; font-size: 15px; font-weight: 600; }}\n"
+        f".card-description {{ fill: #{style.light.muted_color}; font-size: 13px; font-weight: 400; }}\n"
+        f".metric-value {{ fill: #{style.light.text_color}; font-size: 30px; font-weight: 700; }}\n"
+        f".metric-label {{ fill: #{style.light.muted_color}; font-size: 13px; font-weight: 400; }}\n"
+        f".status-value {{ fill: #{style.light.text_color}; font-size: 17px; font-weight: 600; }}\n"
+        f".data-label {{ fill: #{style.light.text_color}; font-size: 15px; font-weight: 600; }}\n"
+        f".data-meta {{ fill: #{style.light.muted_color}; font-size: 13px; font-weight: 400; }}\n"
+        f".meta {{ fill: #{style.light.muted_color}; font-size: 11px; font-weight: 400; }}\n"
+        f".theme-text {{ fill: #{style.light.text_color}; }}\n"
+        f".theme-track {{ fill: #{style.light.track_color}; }}\n"
+        f".activity-none {{ fill: #{light_activity['NONE']}; }}\n"
+        f".activity-first {{ fill: #{light_activity['FIRST_QUARTILE']}; }}\n"
+        f".activity-second {{ fill: #{light_activity['SECOND_QUARTILE']}; }}\n"
+        f".activity-third {{ fill: #{light_activity['THIRD_QUARTILE']}; }}\n"
+        f".activity-fourth {{ fill: #{light_activity['FOURTH_QUARTILE']}; }}\n"
+        "@media (prefers-color-scheme: dark) {\n"
+        f"  .card-title, .metric-value, .status-value, .data-label, .theme-text {{ fill: #{style.dark.text_color}; }}\n"
+        f"  .card-description, .metric-label, .data-meta, .meta {{ fill: #{style.dark.muted_color}; }}\n"
+        f"  .theme-track {{ fill: #{style.dark.track_color}; }}\n"
+        f"  .activity-none {{ fill: #{dark_activity['NONE']}; }}\n"
+        f"  .activity-first {{ fill: #{dark_activity['FIRST_QUARTILE']}; }}\n"
+        f"  .activity-second {{ fill: #{dark_activity['SECOND_QUARTILE']}; }}\n"
+        f"  .activity-third {{ fill: #{dark_activity['THIRD_QUARTILE']}; }}\n"
+        f"  .activity-fourth {{ fill: #{dark_activity['FOURTH_QUARTILE']}; }}\n"
+        "}\n"
         f".action-label {{ fill: #{PROFILE_COLOR}; font-size: 10px; font-weight: 700; "
         "letter-spacing: 0.65px; }\n"
         f".connector-label {{ fill: #{PROFILE_COLOR}; font-size: {CONNECTOR_LABEL_FONT_SIZE:.1f}px; "
@@ -1092,7 +1122,7 @@ def svg_card_frame(
         f'rx="{glow_radius}" fill="none" stroke="#{PROFILE_COLOR}" stroke-width="4" '
         f'stroke-opacity="{style.glow_opacity:.2f}" filter="url(#softGlow)"/>'
         f'<rect x="{x}" y="{y}" width="{width}" height="{height}" '
-        f'rx="{CARD_RADIUS}" fill="#{style.bg_color}" fill-opacity="{style.surface_opacity:.2f}" '
+        f'rx="{CARD_RADIUS}" fill="#{style.light.bg_color}" fill-opacity="{style.surface_opacity:.2f}" '
         f'stroke="#{PROFILE_COLOR}" stroke-width="1.6" '
         f'stroke-opacity="{style.border_opacity:.2f}"/>'
     )
@@ -1222,7 +1252,6 @@ def build_languages_svg(languages: dict[str, int], *, style: SvgStyle) -> str:
     width, height = SVG_WIDTH, STANDARD_CARD_HEIGHT
 
     track_fill_opacity = 0.42
-    highlight_color = style.text_color
     bar_defs = (
         f'<linearGradient id="languageBarFill" x1="0%" y1="0%" x2="100%" y2="0%">'
         f'<stop offset="0%" stop-color="#{PROFILE_COLOR}" stop-opacity="0.98"/>'
@@ -1235,11 +1264,11 @@ def build_languages_svg(languages: dict[str, int], *, style: SvgStyle) -> str:
     ) -> str:
         return (
             f'<rect x="{x}" y="{y}" width="{total_width:.1f}" height="7" rx="3.5" '
-            f'fill="#{style.track_color}" fill-opacity="{track_fill_opacity:.2f}"/>'
+            f'class="theme-track" fill-opacity="{track_fill_opacity:.2f}"/>'
             f'<rect x="{x}" y="{y}" width="{fill_width:.1f}" height="7" rx="3.5" '
             f'fill="url(#languageBarFill)" opacity="{opacity:.2f}"/>'
             f'<rect x="{x + 1:.1f}" y="{y + 1:.1f}" width="{max(fill_width - 2, 0.0):.1f}" height="1.6" rx="0.8" '
-            f'fill="#{highlight_color}" fill-opacity="{0.18 * opacity:.2f}"/>'
+            f'class="theme-text" fill-opacity="{0.18 * opacity:.2f}"/>'
         )
 
     if not ranked or total <= 0:
@@ -1507,13 +1536,13 @@ def blend_hex(start_hex: str, end_hex: str, ratio: float) -> str:
     return "".join(f"{channel:02x}" for channel in blended)
 
 
-def activity_level_colors(style: SvgStyle) -> dict[str, str]:
-    """Map GitHub contribution quartiles onto the profile's green palette."""
+def activity_level_colors(palette: SvgPalette) -> dict[str, str]:
+    """Map contribution quartiles onto the historical profile green palette."""
     return {
-        "NONE": style.track_color,
-        "FIRST_QUARTILE": blend_hex(style.bg_color, PROFILE_COLOR, 0.28),
-        "SECOND_QUARTILE": blend_hex(style.bg_color, PROFILE_COLOR, 0.48),
-        "THIRD_QUARTILE": blend_hex(style.bg_color, PROFILE_COLOR, 0.72),
+        "NONE": palette.track_color,
+        "FIRST_QUARTILE": blend_hex(palette.bg_color, PROFILE_COLOR, 0.28),
+        "SECOND_QUARTILE": blend_hex(palette.bg_color, PROFILE_COLOR, 0.48),
+        "THIRD_QUARTILE": blend_hex(palette.bg_color, PROFILE_COLOR, 0.72),
         "FOURTH_QUARTILE": PROFILE_COLOR,
     }
 
@@ -1579,7 +1608,6 @@ def _activity_weekday_labels(
 
 def _activity_cells(
     weeks: tuple[tuple[ContributionDay, ...], ...],
-    colors: dict[str, str],
     *,
     grid_x: int,
     grid_y: int,
@@ -1591,40 +1619,46 @@ def _activity_cells(
         x = grid_x + (week_index * cell_step)
         for day in week:
             y = grid_y + (day.weekday * cell_step)
-            color = colors.get(day.level, colors["NONE"])
+            level_class = {
+                "FIRST_QUARTILE": "activity-first",
+                "SECOND_QUARTILE": "activity-second",
+                "THIRD_QUARTILE": "activity-third",
+                "FOURTH_QUARTILE": "activity-fourth",
+            }.get(day.level, "activity-none")
             plural = "" if day.count == 1 else "s"
             label = f"{day.date.isoformat()}: {day.count} contribution{plural}"
             blocks.append(
-                f'<rect x="{x}" y="{y}" width="{cell_size}" height="{cell_size}" '
-                f'rx="2" fill="#{color}"><title>{svg_escape(label)}</title></rect>'
+                f'<rect class="{level_class}" x="{x}" y="{y}" '
+                f'width="{cell_size}" height="{cell_size}" rx="2">'
+                f'<title>{svg_escape(label)}</title></rect>'
             )
     return "".join(blocks)
 
 
-def _activity_legend(colors: dict[str, str], *, width: int, height: int) -> str:
+def _activity_legend(*, width: int, height: int) -> str:
     legend_y = height - 27
     legend_cell = 8
     legend_gap = 4
-    legend_colors = [
-        colors["NONE"],
-        colors["FIRST_QUARTILE"],
-        colors["SECOND_QUARTILE"],
-        colors["THIRD_QUARTILE"],
-        colors["FOURTH_QUARTILE"],
+    legend_classes = [
+        "activity-none",
+        "activity-first",
+        "activity-second",
+        "activity-third",
+        "activity-fourth",
     ]
     legend_width = (
         28
-        + (len(legend_colors) * legend_cell)
-        + ((len(legend_colors) - 1) * legend_gap)
+        + (len(legend_classes) * legend_cell)
+        + ((len(legend_classes) - 1) * legend_gap)
         + 31
     )
     legend_x = width - CARD_PADDING_X - legend_width
     blocks = [f'<text class="data-meta" x="{legend_x}" y="{legend_y + 7}">Less</text>']
     square_x = legend_x + 31
-    for color in legend_colors:
+    for level_class in legend_classes:
         blocks.append(
-            f'<rect x="{square_x}" y="{legend_y}" width="{legend_cell}" '
-            f'height="{legend_cell}" rx="2" fill="#{color}"/>'
+            f'<rect class="{level_class}" x="{square_x}" y="{legend_y}" '
+            f'width="{legend_cell}" height="{legend_cell}" rx="2"/>'
         )
         square_x += legend_cell + legend_gap
     blocks.append(
@@ -1645,7 +1679,6 @@ def build_activity_svg(
     cell_size, cell_gap = 8, 3
     cell_step = cell_size + cell_gap
     grid_x = 58
-    colors = activity_level_colors(style)
     plural = "" if snapshot.total == 1 else "s"
     blocks = [
         (
@@ -1667,13 +1700,12 @@ def build_activity_svg(
         ),
         _activity_cells(
             snapshot.weeks,
-            colors,
             grid_x=grid_x,
             grid_y=grid_y,
             cell_step=cell_step,
             cell_size=cell_size,
         ),
-        _activity_legend(colors, width=width, height=height),
+        _activity_legend(width=width, height=height),
     ]
     return svg_card_document(
         width=width,
@@ -1851,7 +1883,7 @@ def build_practice_progress_card_svg(
         + f'<text class="status-value" x="{center_x:.1f}" y="88" text-anchor="middle">'
         f"{svg_escape(status)}</text>"
         f'<rect x="{track_x:.1f}" y="108" width="{track_width:.1f}" height="7" rx="3.5" '
-        f'fill="#{style.track_color}" fill-opacity="0.72"/>'
+        f'class="theme-track" fill-opacity="0.72"/>'
         f'<rect x="{track_x:.1f}" y="108" width="{fill_width:.1f}" height="7" rx="3.5" '
         f'fill="#{PROFILE_COLOR}" fill-opacity="0.92"/>'
         f'<text class="meta" x="{center_x:.1f}" y="137" text-anchor="middle">'
