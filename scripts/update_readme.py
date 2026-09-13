@@ -2796,12 +2796,12 @@ def render_license_footer() -> str:
     published alongside README.md on the active branch.
     """
     return (
-        '<p align="center">\n'
+        '<div align="center">\n'
         "  <sub>Code &amp; reusable design licensed under "
         "<strong>EUPL-1.2-or-later</strong> &middot; See "
         '<a href="./LICENSE">LICENSE</a> &amp; '
         '<a href="./NOTICE">NOTICE</a></sub>\n'
-        "</p>"
+        "</div>"
     )
 
 

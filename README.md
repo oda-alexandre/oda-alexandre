@@ -183,9 +183,9 @@
 </div>
 <!-- SECTION:COMMUNITY:END -->
 
-<p align="center">
+<div align="center">
   <sub>Code &amp; reusable design licensed under <strong>EUPL-1.2-or-later</strong> &middot; See <a href="./LICENSE">LICENSE</a> &amp; <a href="./NOTICE">NOTICE</a></sub>
-</p>
+</div>
 <!-- README:END -->
 
 <!-- SOURCE METADATA: invisible in the rendered profile, retained for resilient fallbacks. -->
