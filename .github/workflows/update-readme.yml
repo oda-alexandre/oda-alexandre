@@ -14,12 +14,11 @@ on:
     - cron: '0 0 * * *'
   workflow_dispatch:
 
-# The workflow only needs read access to repository contents; publication to
-# main uses the dedicated SSH deploy key. Profile Health requires Issues write
-# access for de-duplicated incident tracking.
+# The workflow needs only read access to repository contents. Publication to
+# main uses the dedicated SSH deploy key, while Profile Health is centralized in
+# GitLab through a separate least-privilege service-account token.
 permissions:
   contents: read
-  issues: write
 
 concurrency:
   group: publish-profile-readme
@@ -29,6 +28,12 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      prepare_outcome: ${{ steps.publish.outcome }}
+      generate_outcome: ${{ steps.profile.outcome }}
+      verify_outcome: ${{ steps.verify.outcome }}
+      commit_outcome: ${{ steps.commit.outcome }}
+      health_report_b64: ${{ steps.capture_health.outputs.report_b64 }}
 
     steps:
       - name: Checkout source branch
@@ -73,14 +78,12 @@ jobs:
           # use the latest source definition. Template/config stay source-only.
           rm -f \
             "$PUBLISH_DIR/README.template" \
-            "$PUBLISH_DIR/README.template.md" \
             "$PUBLISH_DIR/profile.config.toml"
 
           rsync -a --delete \
             --exclude '.git' \
             --exclude 'README.md' \
             --exclude 'README.template' \
-            --exclude 'README.template.md' \
             --exclude 'profile.config.toml' \
             --exclude 'assets/generated/' \
             ./ "$PUBLISH_DIR"/
@@ -101,6 +104,24 @@ jobs:
           PROFILE_HEALTH_FILE: ${{ runner.temp }}/profile-health.json
         run: python3 scripts/update_readme.py
 
+      - name: Capture profile health report
+        id: capture_health
+        if: always()
+        shell: bash
+        env:
+          PROFILE_HEALTH_FILE: ${{ runner.temp }}/profile-health.json
+        run: |
+          python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["PROFILE_HEALTH_FILE"])
+          encoded = base64.b64encode(path.read_bytes()).decode("ascii") if path.is_file() else ""
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"report_b64={encoded}\n")
+          PY
+
       - name: Verify published snapshot
         id: verify
         if: steps.profile.outcome == 'success'
@@ -110,7 +131,6 @@ jobs:
           set -euo pipefail
           test -f README.md
           test ! -e README.template
-          test ! -e README.template.md
           test ! -e profile.config.toml
           test -f assets/separator.gif
           test -f assets/badges/contact/website.svg
@@ -246,14 +266,53 @@ jobs:
             git worktree remove "$PUBLISH_DIR" --force || true
           fi
 
-      - name: Report profile health
-        if: always()
+
+  report_profile_health:
+    name: Report profile health to GitLab
+    needs: publish
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout health reporter
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev
+          persist-credentials: false
+
+      - name: Restore generator health report
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          PROFILE_HEALTH_REPORT_B64: ${{ needs.publish.outputs.health_report_b64 }}
           PROFILE_HEALTH_FILE: ${{ runner.temp }}/profile-health.json
-          PROFILE_PREPARE_OUTCOME: ${{ steps.publish.outcome }}
-          PROFILE_GENERATE_OUTCOME: ${{ steps.profile.outcome }}
-          PROFILE_VERIFY_OUTCOME: ${{ steps.verify.outcome }}
-          PROFILE_COMMIT_OUTCOME: ${{ steps.commit.outcome }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          encoded = os.environ.get("PROFILE_HEALTH_REPORT_B64", "").strip()
+          if encoded:
+              Path(os.environ["PROFILE_HEALTH_FILE"]).write_bytes(
+                  base64.b64decode(encoded, validate=True)
+              )
+          PY
+
+      - name: Report GitHub health to GitLab
+        shell: bash
+        env:
+          PROFILE_HEALTH_FORGE: github
+          PROFILE_HEALTH_FILE: ${{ runner.temp }}/profile-health.json
+          PROFILE_WORKFLOW_OUTCOME: ${{ needs.publish.result }}
+          PROFILE_PREPARE_OUTCOME: ${{ needs.publish.outputs.prepare_outcome }}
+          PROFILE_GENERATE_OUTCOME: ${{ needs.publish.outputs.generate_outcome }}
+          PROFILE_VERIFY_OUTCOME: ${{ needs.publish.outputs.verify_outcome }}
+          PROFILE_COMMIT_OUTCOME: ${{ needs.publish.outputs.commit_outcome }}
+          GITLAB_PROFILE_HEALTH_TOKEN: ${{ secrets.GITLAB_PROFILE_HEALTH_TOKEN }}
+          GITLAB_PROFILE_HEALTH_API_URL: https://gitlab.com/api/v4
+          GITLAB_PROFILE_HEALTH_PROJECT: oda-alexandre/oda-alexandre
+          GITLAB_PROFILE_HEALTH_ASSIGNEE: oda-alexandre
         run: python3 scripts/report_profile_health.py

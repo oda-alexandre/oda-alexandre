@@ -379,19 +379,47 @@ Profile Health. Never let source instability leak into README.md.
 ## 6. Profile Health
 
 Visitor-facing resilience and maintainer-facing observability are separate.
+GitLab Issues is the canonical operational incident tracker even when the failing
+automation runs on GitHub.
 
 - README stays clean through fallback/omission.
-- `.profile-health.json` records degraded sources/build failures.
-- `scripts/report_profile_health.py` creates or updates one open Profile Health
-  issue instead of duplicating incidents.
-- When a later workflow is healthy, the existing incident receives a recovery
-  comment and is closed automatically.
-- Repository Issues must therefore be enabled and the GitHub workflow permissions
-  include `issues: write`. During the migration, GitHub remains the operational
-  incident tracker; GitLab CI uses the same last-good generation behavior but does not
-  create a second forge-specific incident system yet.
+- the configured `PROFILE_HEALTH_FILE` records degraded sources/build failures
+  for the current generation job.
+- `scripts/report_profile_health.py` sends both forges to the same GitLab project,
+  but keeps **two independent incident streams**: one for GitHub Actions and one
+  for GitLab CI. A healthy run from one forge must never close the other forge's
+  incident.
+- at most one managed issue is open per forge. A later healthy run adds a recovery
+  note and closes that forge's issue; a later unrelated incident starts a new
+  issue, preserving an incident history instead of reopening one issue forever.
+- the reporter owns and reconciles the project labels `health::incident`,
+  `forge::github`, and `forge::gitlab`. Each managed issue carries the global
+  health label plus exactly one forge-scoped label.
+- managed issues are confidential and may be assigned to the configured GitLab
+  maintainer when that username can be resolved.
+- GitHub Actions separates publication from health reporting. The publication
+  job exports step outcomes plus a Base64 copy of the small generator health
+  report; a distinct `if: always()` job sends those signals to GitLab. This means
+  a failed or timed-out publication job can still produce an incident when the
+  reporting job can run. GitHub needs no Issues write permission; the GitLab
+  service-account token exists only in the dedicated reporting job as an Actions
+  secret.
+- GitLab CI adds a `when: always` watchdog on GitLab-hosted compute with
+  `needs: []`, so it starts independently of the local-runner path. It polls the
+  expected pipeline jobs through the GitLab API, reports failed/cancelled jobs,
+  and treats a job still non-terminal after ten minutes as an incident instead of
+  requiring the maintainer to notice a stuck pipeline manually.
+- the GitLab publication job preserves `.profile-health.gitlab.json` as a short-
+  lived artifact. After a successful publication job, the watchdog retrieves that
+  exact job artifact through the GitLab API and merges recoverable generator
+  incidents into the GitLab CI issue without making the report a source file.
+- the automation credential must belong to a project-scoped GitLab service
+  account with Reporter access and `api` scope. It is an observability credential,
+  not a repository-write identity. Use separate tokens for GitLab CI and GitHub
+  Actions so either integration can be revoked or rotated independently.
 
-Do not weaken or bypass issue de-duplication when changing health reporting.
+Do not weaken issue de-duplication, merge the two forge states into one issue, or
+let one forge close the other forge's active incident.
 
 ## 7. Adding a new section or card
 
@@ -433,8 +461,8 @@ GitLab is the canonical source authority:
 - **`main` is never mirrored between forges.** The two publication branches are
   expected to diverge because their forge-native statistics and links differ.
 
-The legacy GitHub -> GitLab source mirror is not part of steady state and must remain
-removed. GitHub Actions never pushes `dev`, release tags, or `main` to GitLab. The
+No GitHub -> GitLab source mirror exists in steady state. GitHub Actions never
+pushes `dev`, release tags, or `main` to GitLab. The
 only cross-forge source direction is GitLab -> GitHub for `dev` and signed `v*`;
 publication branches remain forge-local.
 
@@ -478,11 +506,14 @@ The GitLab project must be configured before the first publication job runs:
 1. In **Settings -> CI/CD -> Job token permissions**, enable **Allow Git push
    requests to the repository**. Keep cross-project job-token pushes disabled; this
    pipeline only needs same-project publication.
-2. Protect `dev` and `main` and disable force-push on both. `dev` allows
-   Maintainers/Owners to create canonical source commits. `main` allows the
-   Maintainer/Owner identity whose pipeline uses `CI_JOB_TOKEN` to perform normal
-   publication pushes. No GitHub -> GitLab deploy key is permitted on either
-   branch. Protect the `v*` namespace as immutable release refs.
+2. Protect `dev` and `main` and disable force-push on both. Keep **Allowed to
+   merge** set to `No one` and **Allowed to push and merge** set to `Maintainers`
+   on both branches. The latter permission is required for the Maintainer/Owner
+   identity whose pipeline uses `CI_JOB_TOKEN` and already grants the merge
+   permission GitLab requires for protected-branch schedules; do not widen the
+   separate merge rule just for scheduling. No GitHub -> GitLab deploy key is
+   permitted on either branch. Protect the `v*` namespace as immutable release
+   refs.
 3. Store `AUTHORIZED_GPG_FINGERPRINT`, `HTB_TOKEN`, `HACKERONE_API_TOKEN`,
    `GITHUB_MIRROR_APP_ID`, and `GITHUB_MIRROR_APP_PRIVATE_KEY_B64` as protected
    GitLab CI/CD variables. The fingerprint and App ID are identifiers/trust
@@ -499,8 +530,9 @@ The GitLab project must be configured before the first publication job runs:
    `saas-linux-small-amd64` and the pinned job images so the public profile can
    still refresh when the local runner is offline.
 5. Create a daily GitLab pipeline schedule targeting `dev` after the first
-   end-to-end publication succeeds. A small offset from the GitHub schedule (for
-   example `10 0 * * *` UTC) avoids unnecessary simultaneous external API traffic.
+   end-to-end publication succeeds. Use cron `10 0 * * *` with the schedule
+   timezone explicitly set to **UTC**, keeping a small offset from the GitHub
+   `0 0 * * *` UTC schedule and avoiding simultaneous external API traffic.
 
 ### GitLab Free cryptographic gate
 
@@ -511,16 +543,18 @@ stable source-history trust boundary rather than only the most recent push range
 
 - `AUTHORIZED_GPG_FINGERPRINT` lives outside the repository as a protected CI/CD
   variable and identifies the only accepted signing key;
-- `SOURCE_TRUST_ANCHOR_SHA` is the pre-cutover commit verified on both forges before
-  GitLab became canonical. The pipeline verifies that anchor itself on every run;
+- `SOURCE_TRUST_ANCHOR_SHA` is the bootstrap commit verified on both forges before
+  the canonical GitLab history advanced. The pipeline verifies that anchor itself
+  on every run;
 - the public key is downloaded from `${CI_SERVER_URL}/${CI_PROJECT_ROOT_NAMESPACE}.gpg`
   and its full fingerprint must contain the configured key before import;
 - every commit reachable from `SOURCE_TRUST_ANCHOR_SHA..CI_COMMIT_SHA` is verified,
   so an unsigned commit that once made a pipeline fail cannot become implicitly
   trusted by a later signed commit;
-- a `v*` release must be an annotated tag, must target a commit in canonical `dev`
-  history, and both the tag object and all source history through its target must
-  validate against the authorized key;
+- every pushed tag in the protected `v*` namespace enters CI; the tag name must
+  match the supported version format, the release must be annotated, it must target
+  a commit in canonical `dev` history, and both the tag object and all source history
+  through its target must validate against the authorized key;
 - schedule and manual pipelines are accepted only when they target `dev`, so the
   immutable `CI_COMMIT_SHA` that is verified is also the exact source object later
   published;
@@ -555,9 +589,10 @@ installation token scoped back down to this repository with `contents:write` and
 `workflows:write`. Git authentication uses an HTTP extra header kept only in the
 job process environment; the token is never placed in a remote URL or printed.
 
-The mirror job runs only for push pipelines on canonical `dev` or signed SemVer
-`v*` tags, after all earlier pipeline stages succeed. It never runs for schedules
-or manual refreshes and has no code path for `main`:
+The mirror job runs only for push pipelines on canonical `dev` or signed release
+tags that match the supported `v*` version format, after all earlier pipeline
+stages succeed. It never runs for schedules or manual refreshes and has no code
+path for `main`:
 
 - `dev` is fast-forwarded only to the exact `CI_COMMIT_SHA` validated by that
   pipeline. Divergence is an error; force-push is never used. A stale concurrent
@@ -580,9 +615,11 @@ history controls:
 - `release-tag-immutability-and-signatures`: updates, deletion and force-push
   blocked plus signed commits required, no bypass;
 - GitHub `main` remains governed separately by `main-publication-*` rules and its
-  existing publication deploy key. The mirror App receives no `main` bypass.
+  existing publication deploy key. The mirror App receives no `main` bypass. The
+  ruleset bypass applies to the `DeployKey` actor category rather than one named
+  key, so do not add another write-enabled deploy key to this repository.
 
-The completed cutover leaves no GitHub -> GitLab source credentials or mirror step.
+Steady state contains no GitHub -> GitLab source credentials or mirror step.
 GitHub source/tag authorization rules contain only the mirror App, making GitHub
 `dev` and `v*` technical mirrors. GitHub Actions publishes `main` from mirrored
 `dev`; mirrored release-tag creation does not trigger a redundant profile publish.
@@ -638,4 +675,3 @@ findings, projects, posts or account metadata.
 
 Do not copy personal values into EUPL source-code comments or examples when a
 neutral placeholder communicates the same architecture rule.
-
