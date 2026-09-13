@@ -1086,8 +1086,6 @@ def svg_typography_css(style: SvgStyle) -> str:
         f"  .activity-third {{ fill: #{dark_activity['THIRD_QUARTILE']}; }}\n"
         f"  .activity-fourth {{ fill: #{dark_activity['FOURTH_QUARTILE']}; }}\n"
         "}\n"
-        f".action-label {{ fill: #{PROFILE_COLOR}; font-size: 10px; font-weight: 700; "
-        "letter-spacing: 0.65px; }\n"
         f".connector-label {{ fill: #{PROFILE_COLOR}; font-size: {CONNECTOR_LABEL_FONT_SIZE:.1f}px; "
         f"font-weight: 700; letter-spacing: {CONNECTOR_LABEL_LETTER_SPACING:.2f}px; "
         "font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }"
@@ -1423,7 +1421,6 @@ def build_featured_project_card_svg(
     if not name:
         raise ValueError("Featured project is missing its name")
 
-    contributed = repository.contributed
     description_lines = wrap_project_description(repository.description)
     language = repository.primary_language.strip()
     stars = repository.stars
@@ -1435,11 +1432,6 @@ def build_featured_project_card_svg(
         title_attrs = ' textLength="286" lengthAdjust="spacingAndGlyphs"'
 
     content: list[str] = []
-    if contributed:
-        content.append(
-            f'<text class="action-label" x="{center_x:.1f}" y="19" '
-            'text-anchor="middle">CONTRIBUTED</text>'
-        )
     content.append(
         f'<text class="card-title" x="{center_x:.1f}" y="39" '
         f'text-anchor="middle"{title_attrs}>{svg_escape(name)}</text>'
