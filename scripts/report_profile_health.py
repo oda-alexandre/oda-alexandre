@@ -52,6 +52,14 @@ API_URL = (
 ).rstrip("/")
 ASSIGNEE_USERNAME = os.environ.get("GITLAB_PROFILE_HEALTH_ASSIGNEE", "").strip()
 HEALTH_FILE = Path(os.environ.get("PROFILE_HEALTH_FILE", ".profile-health.json"))
+TEST_NONE = "none"
+TEST_INCIDENT_A = "incident-a"
+TEST_INCIDENT_B = "incident-b"
+TEST_RECOVERY = "recovery"
+TEST_CASE = os.environ.get("PROFILE_HEALTH_TEST_CASE", "").strip().lower()
+VALID_TEST_CASES = {"", TEST_NONE, TEST_INCIDENT_A, TEST_INCIDENT_B, TEST_RECOVERY}
+SELF_TEST_MARKER = "<!-- profile-health-self-test -->"
+SELF_TEST_COMPONENT = "Profile Health self-test"
 
 if FORGE not in {"github", "gitlab"}:
     raise SystemExit("PROFILE_HEALTH_FORGE must be either 'github' or 'gitlab'")
@@ -61,6 +69,10 @@ if "/" not in PROJECT:
     raise SystemExit("GITLAB_PROFILE_HEALTH_PROJECT must use namespace/project format")
 if not API_URL.startswith("https://"):
     raise SystemExit("GITLAB_PROFILE_HEALTH_API_URL must use HTTPS")
+if TEST_CASE not in VALID_TEST_CASES:
+    raise SystemExit(
+        "PROFILE_HEALTH_TEST_CASE must be one of: none, incident-a, incident-b, recovery"
+    )
 
 PROJECT_ID = urllib.parse.quote(PROJECT, safe="")
 GLOBAL_LABEL = LabelSpec(
@@ -71,7 +83,7 @@ GLOBAL_LABEL = LabelSpec(
 FORGE_LABELS = {
     "github": LabelSpec(
         "forge::github",
-        "#24292F",
+        "#FFFFFF",
         "Profile Health incident originating from GitHub Actions",
     ),
     "gitlab": LabelSpec(
@@ -192,6 +204,44 @@ def ensure_labels() -> tuple[str, str]:
     ensure_label(GLOBAL_LABEL)
     ensure_label(forge_label)
     return GLOBAL_LABEL.name, forge_label.name
+
+
+def _self_test_requested() -> bool:
+    return TEST_CASE in {TEST_INCIDENT_A, TEST_INCIDENT_B, TEST_RECOVERY}
+
+
+def _self_test_incidents() -> list[Incident] | None:
+    """Return controlled incidents for an explicitly manual reporter self-test."""
+    if not _self_test_requested():
+        return None
+
+    if FORGE == "github":
+        source = os.environ.get("GITHUB_EVENT_NAME", "").strip()
+        expected_source = "workflow_dispatch"
+    else:
+        source = os.environ.get("CI_PIPELINE_SOURCE", "").strip()
+        expected_source = "web"
+
+    if source != expected_source:
+        fail(
+            "Profile Health self-tests are allowed only from an explicit manual "
+            f"{FORGE_DISPLAY[FORGE]} run"
+        )
+
+    if TEST_CASE == TEST_RECOVERY:
+        return []
+
+    suffix = "A" if TEST_CASE == TEST_INCIDENT_A else "B"
+    return [
+        Incident(
+            component=SELF_TEST_COMPONENT,
+            message=(
+                f"Controlled synthetic incident {suffix}; this validates issue "
+                "creation, de-duplication, updates, and recovery without breaking "
+                "a production dependency"
+            ),
+        )
+    ]
 
 
 def _health_report_incidents(*, expect_report: bool) -> dict[str, str]:
@@ -413,6 +463,9 @@ def _sorted_incidents(incidents: dict[str, str]) -> list[Incident]:
 
 
 def load_incidents() -> list[Incident]:
+    self_test = _self_test_incidents()
+    if self_test is not None:
+        return self_test
     return _github_incidents() if FORGE == "github" else _gitlab_incidents()
 
 
@@ -481,14 +534,30 @@ def build_body(incidents: list[Incident]) -> str:
     lines = [
         managed_marker(),
         f"<!-- profile-health-fingerprint:{fingerprint} -->",
-        (
-            "This confidential issue is managed automatically by the Profile README "
-            f"health reporter for **{FORGE_DISPLAY[FORGE]}**."
-        ),
-        "",
-        "## Detected problems",
-        "",
     ]
+    if TEST_CASE in {TEST_INCIDENT_A, TEST_INCIDENT_B}:
+        lines.extend(
+            [
+                SELF_TEST_MARKER,
+                (
+                    "**Controlled self-test:** this incident was generated manually "
+                    "to validate Profile Health automation. No production dependency "
+                    "was intentionally broken."
+                ),
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            (
+                "This confidential issue is managed automatically by the Profile README "
+                f"health reporter for **{FORGE_DISPLAY[FORGE]}**."
+            ),
+            "",
+            "## Detected problems",
+            "",
+        ]
+    )
     for item in incidents:
         component = item["component"].replace("\n", " ")
         message = item["message"].replace("\n", " ")
@@ -544,6 +613,11 @@ def open_health_issue(labels: tuple[str, str]) -> JsonObject | None:
         if isinstance(title, str) and title in valid_titles:
             return issue
     return None
+
+
+def is_self_test_issue(issue: JsonObject) -> bool:
+    description = issue.get("description")
+    return isinstance(description, str) and SELF_TEST_MARKER in description
 
 
 def resolve_assignee_id() -> int | None:
@@ -618,36 +692,62 @@ def recover(issue: JsonObject) -> None:
     print(f"Closed recovered {FORGE_DISPLAY[FORGE]} Profile Health issue #{iid}.")
 
 
+def _assert_self_test_issue_compatible(issue: JsonObject | None) -> None:
+    if (
+        _self_test_requested()
+        and issue is not None
+        and not is_self_test_issue(issue)
+    ):
+        fail(
+            "Refusing to run a Profile Health self-test while a real managed "
+            f"{FORGE_DISPLAY[FORGE]} incident is open"
+        )
+
+
+def _report_incidents(
+    incidents: list[Incident],
+    issue: JsonObject | None,
+    labels: tuple[str, str],
+) -> None:
+    title = incident_title(incidents)
+    body = build_body(incidents)
+    if issue is None:
+        create_issue(title, body, labels)
+        print(f"Created {FORGE_DISPLAY[FORGE]} Profile Health issue.")
+        return
+
+    iid = _issue_iid(issue)
+    old_fingerprint = body_fingerprint(issue.get("description"))
+    new_fingerprint = incident_fingerprint(incidents)
+    if old_fingerprint != new_fingerprint:
+        changed = ", ".join(item["component"] for item in incidents)
+        message = f"Profile Health incident set changed: **{changed}**."
+        run_kind, url, _, _ = run_metadata()
+        if url:
+            message += f" [{run_kind}]({url})"
+        add_note(iid, message)
+    update_issue(iid, title=title, body=body, labels=labels)
+    print(f"Updated {FORGE_DISPLAY[FORGE]} Profile Health issue #{iid}.")
+
+
+def _recover_or_report_clean(issue: JsonObject | None) -> None:
+    if issue is not None:
+        recover(issue)
+        return
+    print(f"{FORGE_DISPLAY[FORGE]} Profile Health is clean; no open incident issue.")
+
+
 def main() -> None:
     labels = ensure_labels()
     incidents = load_incidents()
     issue = open_health_issue(labels)
+    _assert_self_test_issue_compatible(issue)
 
     if incidents:
-        title = incident_title(incidents)
-        body = build_body(incidents)
-        if issue:
-            iid = _issue_iid(issue)
-            old_fingerprint = body_fingerprint(issue.get("description"))
-            new_fingerprint = incident_fingerprint(incidents)
-            if old_fingerprint != new_fingerprint:
-                changed = ", ".join(item["component"] for item in incidents)
-                message = f"Profile Health incident set changed: **{changed}**."
-                run_kind, url, _, _ = run_metadata()
-                if url:
-                    message += f" [{run_kind}]({url})"
-                add_note(iid, message)
-            update_issue(iid, title=title, body=body, labels=labels)
-            print(f"Updated {FORGE_DISPLAY[FORGE]} Profile Health issue #{iid}.")
-        else:
-            create_issue(title, body, labels)
-            print(f"Created {FORGE_DISPLAY[FORGE]} Profile Health issue.")
+        _report_incidents(incidents, issue, labels)
         return
 
-    if issue:
-        recover(issue)
-    else:
-        print(f"{FORGE_DISPLAY[FORGE]} Profile Health is clean; no open incident issue.")
+    _recover_or_report_clean(issue)
 
 
 if __name__ == "__main__":

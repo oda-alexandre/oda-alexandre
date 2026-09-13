@@ -20,6 +20,13 @@ workflow:
       variables:
         RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
 
+    # Manual Profile Health self-tests are isolated from publication/source jobs
+    # and run only on GitLab-hosted compute.
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "dev" && $PROFILE_HEALTH_TEST_CASE =~ /^(incident-a|incident-b|recovery)$/'
+      variables:
+        RUNNER_ROUTING_TAG: "saas-linux-small-amd64"
+        PROFILE_HEALTH_SELF_TEST: "true"
+
     # Manual validation/publication is intentionally restricted to canonical dev.
     - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "dev"'
       variables:
@@ -54,6 +61,10 @@ variables:
 
 verify_signature:
   stage: verify
+  rules:
+    - if: '$PROFILE_HEALTH_SELF_TEST == "true"'
+      when: never
+    - when: on_success
   image: "debian:trixie-slim@sha256:38a76d01668772e381ad2826d876627c89e7133e2f8a0f5d567306798b0f2a16"
   before_script:
     - |
@@ -221,6 +232,8 @@ test_secrets:
       }
       gitleaks detect --source . -v
   rules:
+    - if: '$PROFILE_HEALTH_SELF_TEST == "true"'
+      when: never
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: never
     - when: on_success
@@ -228,6 +241,8 @@ test_secrets:
 publish_profile:
   stage: publish
   rules:
+    - if: '$PROFILE_HEALTH_SELF_TEST == "true"'
+      when: never
     - if: '$CI_COMMIT_TAG'
       when: never
     - when: on_success

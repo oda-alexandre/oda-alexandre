@@ -417,6 +417,19 @@ automation runs on GitHub.
   account with Reporter access and `api` scope. It is an observability credential,
   not a repository-write identity. Use separate tokens for GitLab CI and GitHub
   Actions so either integration can be revoked or rotated independently.
+- the reporter exposes a controlled **manual self-test** with three cases:
+  `incident-a`, `incident-b`, and `recovery`. The two incident cases exercise
+  create/de-duplicate/update behaviour; recovery closes only a synthetic managed
+  issue. Self-tests are accepted only from GitHub `workflow_dispatch` or a GitLab
+  web pipeline, never from push/schedule execution. They do not intentionally
+  break an external dependency. GitHub skips the publication job for a self-test;
+  GitLab skips signature/test/publication jobs and runs only the SaaS watchdog.
+  The reporter marks synthetic issues explicitly and refuses to overwrite a real
+  open incident from a self-test.
+- on GitHub, select the `profile_health_test` input in `Publish Profile README`.
+  On GitLab, start a manual pipeline on protected `dev` with the CI/CD variable
+  `PROFILE_HEALTH_TEST_CASE` set to one of the three self-test cases. Leave the
+  input/variable unset (`none` on GitHub) for normal operation.
 
 Do not weaken issue de-duplication, merge the two forge states into one issue, or
 let one forge close the other forge's active incident.
