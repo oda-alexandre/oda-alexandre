@@ -16,7 +16,7 @@ workflow:
         RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
 
     # Release tags are canonical source refs and pass the same cryptographic gate.
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$/'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^v/'
       variables:
         RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
 
@@ -39,6 +39,7 @@ stages:
   - test
   - publish
   - mirror
+  - health
 
 variables:
   GIT_DEPTH: "0"
@@ -169,6 +170,10 @@ verify_signature:
 
       SOURCE_COMMIT="$CI_COMMIT_SHA"
       if [ -n "${CI_COMMIT_TAG:-}" ]; then
+        if ! printf '%s\n' "$CI_COMMIT_TAG" |
+          grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$'; then
+          fail "Release tag $CI_COMMIT_TAG does not match the supported release v* format."
+        fi
         TAG_REF="refs/tags/$CI_COMMIT_TAG"
         [ "$(git cat-file -t "$TAG_REF")" = "tag" ] || \
           fail "Release $CI_COMMIT_TAG must be an annotated tag object."
@@ -236,6 +241,11 @@ publish_profile:
     - job: test_secrets
       artifacts: false
       optional: true
+  artifacts:
+    when: always
+    expire_in: 1 day
+    paths:
+      - .profile-health.gitlab.json
   before_script:
     - |
       set -eu
@@ -278,11 +288,13 @@ publish_profile:
 
       PUBLISH_DIR="$CI_BUILDS_DIR/profile-publish-$CI_JOB_ID"
       HEALTH_FILE="$CI_PROJECT_DIR/.profile-health.gitlab.json"
+      # Seed an empty report so successful no-op/stale publications remain a
+      # healthy, explicit state even when generation is intentionally skipped.
+      printf '{"incidents":[]}\n' > "$HEALTH_FILE"
 
       cleanup() {
         git worktree remove "$PUBLISH_DIR" --force >/dev/null 2>&1 || true
         rm -rf "$PUBLISH_DIR"
-        rm -f "$HEALTH_FILE"
       }
       trap cleanup EXIT HUP INT TERM
 
@@ -326,14 +338,12 @@ publish_profile:
 
       rm -f \
         "$PUBLISH_DIR/README.template" \
-        "$PUBLISH_DIR/README.template.md" \
         "$PUBLISH_DIR/profile.config.toml"
 
       rsync -a --delete \
         --exclude '.git' \
         --exclude 'README.md' \
         --exclude 'README.template' \
-        --exclude 'README.template.md' \
         --exclude 'profile.config.toml' \
         --exclude 'assets/generated/' \
         ./ "$PUBLISH_DIR"/
@@ -348,7 +358,6 @@ publish_profile:
 
       test -f "$PUBLISH_DIR/README.md"
       test ! -e "$PUBLISH_DIR/README.template"
-      test ! -e "$PUBLISH_DIR/README.template.md"
       test ! -e "$PUBLISH_DIR/profile.config.toml"
       test -f "$PUBLISH_DIR/assets/separator.gif"
       test -f "$PUBLISH_DIR/assets/badges/contact/website.svg"
@@ -419,3 +428,26 @@ mirror_source_to_github:
       done
   script:
     - python3 scripts/mirror_source_to_github.py
+
+
+# Profile Health is centralized in GitLab Issues. This SaaS watchdog starts
+# independently of the local-runner path, waits for the expected jobs to finish,
+# and can report a job that remains pending/running for too long.
+report_profile_health:
+  stage: health
+  needs: []
+  image: "python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e"
+  tags:
+    - saas-linux-small-amd64
+  when: always
+  interruptible: false
+  timeout: 12m
+  resource_group: profile-health-gitlab
+  variables:
+    PROFILE_HEALTH_FORGE: "gitlab"
+    PROFILE_HEALTH_FILE: "$CI_PROJECT_DIR/.profile-health.gitlab.json"
+    GITLAB_PROFILE_HEALTH_API_URL: "$CI_API_V4_URL"
+    GITLAB_PROFILE_HEALTH_PROJECT: "$CI_PROJECT_PATH"
+    GITLAB_PROFILE_HEALTH_ASSIGNEE: "$CI_PROJECT_ROOT_NAMESPACE"
+  script:
+    - python3 scripts/report_profile_health.py

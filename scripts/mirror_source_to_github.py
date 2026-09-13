@@ -112,7 +112,7 @@ def create_app_jwt(app_id: str, private_key: bytes) -> str:
         json.dumps(
             {"iat": now - 60, "exp": now + 540, "iss": app_id},
             separators=(",", ":"),
-        ).encode("utf-8")
+        ).encode()
     )
     signing_input = f"{header}.{payload}".encode("ascii")
 
@@ -150,7 +150,7 @@ def github_json(
         "X-GitHub-Api-Version": GITHUB_API_VERSION,
     }
     if payload is not None:
-        data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        data = json.dumps(payload, separators=(",", ":")).encode()
         headers["Content-Type"] = "application/json"
 
     request = urllib.request.Request(

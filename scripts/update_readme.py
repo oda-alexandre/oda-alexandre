@@ -4,9 +4,9 @@
 """Refresh dynamic profile README data and generate local SVG cards.
 
 No third-party Python packages are required. Forge-specific data is supplied by
-the selected provider; the current GitHub publication uses the workflow's
-short-lived GITHUB_TOKEN. Reviewed external-platform adapters receive credentials,
-such as HTB and HackerOne tokens, only through repository Actions secrets.
+the selected provider. Reviewed external-platform adapters receive credentials,
+such as HTB and HackerOne tokens, only through the active forge CI environment;
+credentials are never read from repository source files.
 
 Architecture contract
 ---------------------
@@ -209,7 +209,7 @@ class Section:
 
 
 class HealthReport:
-    """Collect non-fatal incidents for the workflow's profile-health issue."""
+    """Collect non-fatal incidents for the active forge workflow health report."""
 
     def __init__(self) -> None:
         self._incidents: dict[str, str] = {}
@@ -217,7 +217,10 @@ class HealthReport:
     def add(self, component: str, message: object) -> None:
         text = re.sub(r"\s+", " ", str(message)).strip()
         self._incidents[component] = text[:800]
-        print(f"::warning::{component}: {text}")
+        if os.environ.get("GITHUB_ACTIONS", "").casefold() == "true":
+            print(f"::warning::{component}: {text}")
+        else:
+            print(f"WARNING: {component}: {text}")
 
     @property
     def incidents(self) -> list[dict[str, str]]:
@@ -299,7 +302,7 @@ def htb_json(path: str) -> JsonContainer:
     route failures through Profile Health and preserve last-good public assets.
     """
     if not HTB_TOKEN:
-        raise RuntimeError("HTB_TOKEN repository secret is not configured")
+        raise RuntimeError("HTB_TOKEN CI secret is not configured")
     url = f"{HTB_API_BASE_URL}/{path.lstrip('/')}"
     request = urllib.request.Request(
         url,
@@ -394,7 +397,7 @@ def hackerone_json(
     must never contain it, and callers intentionally request only read endpoints.
     """
     if not HACKERONE_API_TOKEN:
-        raise RuntimeError("HACKERONE_API_TOKEN repository secret is not configured")
+        raise RuntimeError("HACKERONE_API_TOKEN CI secret is not configured")
 
     url = f"{HACKERONE_API_BASE_URL}/{path.lstrip('/')}"
     if query:

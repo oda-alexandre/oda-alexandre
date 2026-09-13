@@ -17,7 +17,7 @@ feed_url = ""
 
 [security_practice]
 # Offensive Security · Pentest
-# Dynamic rank/progress is fetched from HTB Labs with the repository Actions
+# Dynamic rank/progress is fetched from HTB Labs with the active forge CI
 # secret HTB_TOKEN. The public profile URL remains the click destination.
 hack_the_box = "https://profile.hackthebox.com/profile/01a0193e-ee03-716d-a699-81f553d6548a"
 # Blue Team · DFIR
@@ -28,7 +28,8 @@ cyberdefenders = "https://cyberdefenders.org/p/maitreoda"
 [security_research]
 # Real-world security research. The profile URL is public, but the card remains
 # hidden until the Hacker API proves meaningful activity (Signal/Impact or a
-# public disclosure). Authentication uses the Actions secret HACKERONE_API_TOKEN.
+# public disclosure). Authentication uses the active forge CI secret
+# HACKERONE_API_TOKEN.
 hackerone = "https://hackerone.com/maitreoda"
 
 # Optional external public disclosures can be added later only as complete
