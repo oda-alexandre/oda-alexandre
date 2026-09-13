@@ -328,5 +328,4 @@ jobs:
           GITLAB_PROFILE_HEALTH_TOKEN: ${{ secrets.GITLAB_PROFILE_HEALTH_TOKEN }}
           GITLAB_PROFILE_HEALTH_API_URL: https://gitlab.com/api/v4
           GITLAB_PROFILE_HEALTH_PROJECT: oda-alexandre/oda-alexandre
-          GITLAB_PROFILE_HEALTH_ASSIGNEE: oda-alexandre
         run: python3 scripts/report_profile_health.py

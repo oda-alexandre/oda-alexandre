@@ -395,8 +395,10 @@ automation runs on GitHub.
 - the reporter owns and reconciles the project labels `health::incident`,
   `forge::github`, and `forge::gitlab`. Each managed issue carries the global
   health label plus exactly one forge-scoped label.
-- managed issues are confidential and may be assigned to the configured GitLab
-  maintainer when that username can be resolved.
+- managed issues are confidential and intentionally left **unassigned**. This avoids
+  creating stale personal GitLab To-Do items when the service account later closes a
+  recovered incident. Maintainer notification is handled by the project's GitLab
+  notification settings instead of issue assignment.
 - GitHub Actions separates publication from health reporting. The publication
   job exports step outcomes plus a Base64 copy of the small generator health
   report; a distinct `if: always()` job sends those signals to GitLab. This means

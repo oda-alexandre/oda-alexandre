@@ -50,7 +50,6 @@ API_URL = (
     or os.environ.get("CI_API_V4_URL", "").strip()
     or "https://gitlab.com/api/v4"
 ).rstrip("/")
-ASSIGNEE_USERNAME = os.environ.get("GITLAB_PROFILE_HEALTH_ASSIGNEE", "").strip()
 HEALTH_FILE = Path(os.environ.get("PROFILE_HEALTH_FILE", ".profile-health.json"))
 TEST_NONE = "none"
 TEST_INCIDENT_A = "incident-a"
@@ -620,29 +619,6 @@ def is_self_test_issue(issue: JsonObject) -> bool:
     return isinstance(description, str) and SELF_TEST_MARKER in description
 
 
-def resolve_assignee_id() -> int | None:
-    if not ASSIGNEE_USERNAME:
-        return None
-    query = urllib.parse.urlencode({"username": ASSIGNEE_USERNAME, "per_page": "20"})
-    _, result = api("GET", f"/users?{query}")
-    if not isinstance(result, list):
-        return None
-    for raw_user in result:
-        if not isinstance(raw_user, dict):
-            continue
-        user = cast(JsonObject, raw_user)
-        username = user.get("username")
-        user_id = user.get("id")
-        if (
-            isinstance(username, str)
-            and username.casefold() == ASSIGNEE_USERNAME.casefold()
-            and isinstance(user_id, int)
-            and not isinstance(user_id, bool)
-        ):
-            return user_id
-    print(f"WARNING: unable to resolve GitLab assignee {ASSIGNEE_USERNAME!r}.")
-    return None
-
 
 def create_issue(title: str, body: str, labels: tuple[str, str]) -> None:
     payload: JsonObject = {
@@ -651,9 +627,6 @@ def create_issue(title: str, body: str, labels: tuple[str, str]) -> None:
         "labels": ",".join(labels),
         "confidential": True,
     }
-    assignee_id = resolve_assignee_id()
-    if assignee_id is not None:
-        payload["assignee_id"] = assignee_id
     api("POST", project_path("/issues"), payload)
 
 
