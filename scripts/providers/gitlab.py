@@ -355,9 +355,9 @@ class GitLabProvider:
         start_date: dt.date,
         end_date: dt.date,
     ) -> tuple[tuple[ContributionDay, ...], ...]:
-        """Build Sunday-based weeks for the shared contribution renderer."""
+        """Build Monday-based weeks to match GitLab's public activity calendar."""
         quartiles = cls._contribution_quartiles(counts)
-        week_start = start_date - dt.timedelta(days=(start_date.weekday() + 1) % 7)
+        week_start = start_date - dt.timedelta(days=start_date.weekday())
         weeks: list[tuple[ContributionDay, ...]] = []
         cursor = week_start
         while cursor <= end_date:
@@ -366,7 +366,7 @@ class GitLabProvider:
                     date=day,
                     count=counts.get(day, 0),
                     level=cls._contribution_level(counts.get(day, 0), quartiles),
-                    weekday=(day.weekday() + 1) % 7,
+                    weekday=day.weekday(),
                 )
                 for offset in range(7)
                 if start_date <= (day := cursor + dt.timedelta(days=offset)) <= end_date

@@ -1064,6 +1064,7 @@ def svg_typography_css(style: SvgStyle) -> str:
         f".status-value {{ fill: #{style.light.text_color}; font-size: 17px; font-weight: 600; }}\n"
         f".data-label {{ fill: #{style.light.text_color}; font-size: 15px; font-weight: 600; }}\n"
         f".data-meta {{ fill: #{style.light.muted_color}; font-size: 13px; font-weight: 400; }}\n"
+        f".activity-axis {{ fill: #{style.light.muted_color}; font-size: 11px; font-weight: 400; }}\n"
         f".meta {{ fill: #{style.light.muted_color}; font-size: 11px; font-weight: 400; }}\n"
         f".theme-text {{ fill: #{style.light.text_color}; }}\n"
         f".theme-track {{ fill: #{style.light.track_color}; }}\n"
@@ -1074,7 +1075,7 @@ def svg_typography_css(style: SvgStyle) -> str:
         f".activity-fourth {{ fill: #{light_activity['FOURTH_QUARTILE']}; }}\n"
         "@media (prefers-color-scheme: dark) {\n"
         f"  .card-title, .metric-value, .status-value, .data-label, .theme-text {{ fill: #{style.dark.text_color}; }}\n"
-        f"  .card-description, .metric-label, .data-meta, .meta {{ fill: #{style.dark.muted_color}; }}\n"
+        f"  .card-description, .metric-label, .data-meta, .meta, .activity-axis {{ fill: #{style.dark.muted_color}; }}\n"
         f"  .theme-track {{ fill: #{style.dark.track_color}; }}\n"
         f"  .activity-none {{ fill: #{dark_activity['NONE']}; }}\n"
         f"  .activity-first {{ fill: #{dark_activity['FIRST_QUARTILE']}; }}\n"
@@ -1570,37 +1571,57 @@ def _activity_month_labels(
     cell_step: int,
     months_y: int,
 ) -> str:
-    blocks: list[str] = []
-    last_month: tuple[int, int] | None = None
+    """Center each month label over the week columns occupied by that month.
+
+    Native forge calendars treat months as spans of calendar columns.  A month
+    may share its first/last week with a neighbouring month, and the rolling
+    365-day window may expose only a partial leading or trailing month.  Basing
+    labels on the complete visible span keeps those partial months visible while
+    avoiding the old first-column collision.
+    """
+    spans: dict[tuple[int, int], list[int]] = {}
+    order: list[tuple[int, int]] = []
+
     for week_index, week in enumerate(weeks):
-        ordered = sorted(week, key=lambda day: day.date)
-        if not ordered:
-            continue
-        candidates = [day for day in ordered if day.date.day <= 7]
-        marker = candidates[0] if candidates else ordered[0]
-        month_key = (marker.date.year, marker.date.month)
-        if month_key == last_month:
-            continue
+        for day in week:
+            month_key = (day.date.year, day.date.month)
+            if month_key not in spans:
+                spans[month_key] = [week_index, week_index]
+                order.append(month_key)
+            else:
+                spans[month_key][1] = week_index
+
+    blocks: list[str] = []
+    for year, month in order:
+        first_week, last_week = spans[(year, month)]
+        midpoint = (first_week + last_week) / 2
+        x = grid_x + (midpoint * cell_step)
         blocks.append(
-            f'<text class="data-meta" x="{grid_x + week_index * cell_step}" '
-            f'y="{months_y}">{ACTIVITY_MONTH_NAMES[marker.date.month - 1]}</text>'
+            f'<text class="activity-axis" x="{x:.1f}" y="{months_y}" '
+            f'text-anchor="middle">{ACTIVITY_MONTH_NAMES[month - 1]}</text>'
         )
-        last_month = month_key
     return "".join(blocks)
 
 
 def _activity_weekday_labels(
     *,
+    forge_name: str,
     grid_y: int,
     cell_step: int,
     cell_size: int,
     label_x: int,
 ) -> str:
+    """Render the weekday convention used by the active forge calendar."""
+    labels = (
+        ((0, "M"), (2, "W"), (4, "F"), (6, "S"))
+        if forge_name.casefold() == "gitlab"
+        else ((1, "Mon"), (3, "Wed"), (5, "Fri"))
+    )
     blocks: list[str] = []
-    for weekday, label in ((1, "Mon"), (3, "Wed"), (5, "Fri")):
+    for weekday, label in labels:
         y = grid_y + (weekday * cell_step) + cell_size - 1
         blocks.append(
-            f'<text class="data-meta" x="{label_x}" y="{y}" '
+            f'<text class="activity-axis" x="{label_x}" y="{y}" '
             f'text-anchor="start">{label}</text>'
         )
     return "".join(blocks)
@@ -1693,6 +1714,7 @@ def build_activity_svg(
             snapshot.weeks, grid_x=grid_x, cell_step=cell_step, months_y=months_y
         ),
         _activity_weekday_labels(
+            forge_name=forge_name,
             grid_y=grid_y,
             cell_step=cell_step,
             cell_size=cell_size,

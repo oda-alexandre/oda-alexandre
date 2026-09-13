@@ -73,7 +73,7 @@ Examples:
 - Forge Activity card title and contribution count -> centered.
 - Stats KPI cells -> centered.
 - Languages: language label left, percentage right, because both describe a bar.
-- Heatmap: month/day labels and Less/More legend stay aligned to the grid.
+- Heatmap: month labels are centered over the visible week columns occupied by each month; leading/trailing partial months remain visible. Weekday labels follow the native forge convention (GitHub: Sunday-based grid with Mon/Wed/Fri labels; GitLab: Monday-based grid with M/W/F/S labels). The Less/More legend stays aligned to the grid.
 - Workflow labels/connectors follow the diagram geometry.
 
 Do not center chart axes merely for visual symmetry.
