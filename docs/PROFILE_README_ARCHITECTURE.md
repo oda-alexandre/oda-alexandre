@@ -418,7 +418,7 @@ Before implementing a new feature:
 each forge. Release tags version source revisions, not generated publication
 snapshots.
 
-### Canonical source authority and cutover window
+### Canonical source authority
 
 GitLab is the canonical source authority:
 
@@ -433,13 +433,10 @@ GitLab is the canonical source authority:
 - **`main` is never mirrored between forges.** The two publication branches are
   expected to diverge because their forge-native statistics and links differ.
 
-During the one-time cutover validation window, the legacy GitHub -> GitLab deploy-key
-mirror can remain enabled as a rollback path. It already excludes `main`, so a
-GitLab -> GitHub source push followed by GitHub Actions can only produce a no-op
-source push back to GitLab when refs are identical. Remove that legacy step, deploy
-key, GitHub secret and host-fingerprint variable immediately after the GitLab ->
-GitHub end-to-end path is proven. Do not leave both directions enabled as steady
-state.
+The legacy GitHub -> GitLab source mirror is not part of steady state and must remain
+removed. GitHub Actions never pushes `dev`, release tags, or `main` to GitLab. The
+only cross-forge source direction is GitLab -> GitHub for `dev` and signed `v*`;
+publication branches remain forge-local.
 
 ### Publication lineage
 
@@ -482,11 +479,10 @@ The GitLab project must be configured before the first publication job runs:
    requests to the repository**. Keep cross-project job-token pushes disabled; this
    pipeline only needs same-project publication.
 2. Protect `dev` and `main` and disable force-push on both. `dev` allows
-   Maintainers/Owners to create canonical source commits; the temporary legacy
-   GitHub -> GitLab deploy key may remain only for the cutover E2E window. `main`
-   allows the Maintainer/Owner identity whose pipeline uses `CI_JOB_TOKEN` to
-   perform normal publication pushes and must not retain the legacy mirror key.
-   Protect the `v*` namespace as immutable release refs.
+   Maintainers/Owners to create canonical source commits. `main` allows the
+   Maintainer/Owner identity whose pipeline uses `CI_JOB_TOKEN` to perform normal
+   publication pushes. No GitHub -> GitLab deploy key is permitted on either
+   branch. Protect the `v*` namespace as immutable release refs.
 3. Store `AUTHORIZED_GPG_FINGERPRINT`, `HTB_TOKEN`, `HACKERONE_API_TOKEN`,
    `GITHUB_MIRROR_APP_ID`, and `GITHUB_MIRROR_APP_PRIVATE_KEY_B64` as protected
    GitLab CI/CD variables. The fingerprint and App ID are identifiers/trust
@@ -576,21 +572,21 @@ GitHub repository rulesets intentionally separate authorization from immutable
 history controls:
 
 - `dev-source-write-authorization`: creation/update bypass for the installed App
-  (and the owner only during the cutover window);
+  only; GitHub `dev` is not an editable source branch;
 - `dev-source-history-protection`: signed commits required, deletion and force-push
   blocked, no bypass;
 - `release-tag-creation-authorization`: tag creation bypass for the installed App
-  (and the owner only during the cutover window);
+  only; release tags are created canonically on GitLab;
 - `release-tag-immutability-and-signatures`: updates, deletion and force-push
   blocked plus signed commits required, no bypass;
 - GitHub `main` remains governed separately by `main-publication-*` rules and its
   existing publication deploy key. The mirror App receives no `main` bypass.
 
-After the first complete GitLab `dev` -> GitHub `dev` -> GitHub Actions -> GitHub
-`main` E2E succeeds, remove the legacy GitHub -> GitLab mirror and its credentials,
-then remove the owner's GitHub bypasses from source/tag creation rules so GitHub
-source refs are technical mirrors only. Create the daily GitLab schedule only after
-that cutover is proven.
+The completed cutover leaves no GitHub -> GitLab source credentials or mirror step.
+GitHub source/tag authorization rules contain only the mirror App, making GitHub
+`dev` and `v*` technical mirrors. GitHub Actions publishes `main` from mirrored
+`dev`; mirrored release-tag creation does not trigger a redundant profile publish.
+A daily GitLab schedule may refresh GitLab `main` independently from source changes.
 
 Repository branch rules should match this model: GitLab `dev` blocks force-push and
 is cryptographically gated by CI; each forge `main` blocks deletion/force-push but
