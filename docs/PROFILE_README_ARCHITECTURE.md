@@ -44,19 +44,19 @@ belong in Profile Health, not in the visitor-facing README.
 Choose typography by **semantic role**, never by copying a font size from a
 nearby card.
 
-| Role | Use | Default alignment |
-| --- | --- | --- |
-| `section-title` | README section headings (`FEATURED PROJECTS`, `GITHUB STATS`) | centered |
-| `section-lead` | short human lead inside a section (`I thank all my followers`) | centered |
-| `card-title` | project/platform/certification/activity card heading | centered |
-| `card-description` | explanatory narrative copy inside a card | centered |
-| `metric-value` | prominent KPI number | centered |
-| `metric-label` | label paired with a numeric KPI | centered |
-| `status-value` | prominent textual state such as a platform rank | centered |
-| `data-label` | primary text that belongs to chart geometry | follows data geometry |
-| `data-meta` | secondary chart value/axis/legend text | follows data geometry |
-| `meta` | tertiary contextual information | normally centered in narrative cards |
-| `connector-label` | workflow transition label | tied to connector geometry |
+| Role               | Use                                                            | Default alignment                    |
+| ------------------ | -------------------------------------------------------------- | ------------------------------------ |
+| `section-title`    | README section headings (`FEATURED PROJECTS`, `GITHUB STATS`)  | centered                             |
+| `section-lead`     | short human lead inside a section (`I thank all my followers`) | centered                             |
+| `card-title`       | project/platform/certification/activity card heading           | centered                             |
+| `card-description` | explanatory narrative copy inside a card                       | centered                             |
+| `metric-value`     | prominent KPI number                                           | centered                             |
+| `metric-label`     | label paired with a numeric KPI                                | centered                             |
+| `status-value`     | prominent textual state such as a platform rank                | centered                             |
+| `data-label`       | primary text that belongs to chart geometry                    | follows data geometry                |
+| `data-meta`        | secondary chart value/axis/legend text                         | follows data geometry                |
+| `meta`             | tertiary contextual information                                | normally centered in narrative cards |
+| `connector-label`  | workflow transition label                                      | tied to connector geometry           |
 
 `section-title` and `section-lead` are rendered by GitHub Markdown/HTML.
 SVG roles are defined centrally in `svg_typography_css()`.
@@ -593,7 +593,7 @@ stable source-history trust boundary rather than only the most recent push range
 - `SOURCE_TRUST_ANCHOR_SHA` is the bootstrap commit verified on both forges before
   the canonical GitLab history advanced. The pipeline verifies that anchor itself
   on every run;
-- the public key is downloaded from `${CI_SERVER_URL}/${CI_PROJECT_ROOT_NAMESPACE}.gpg`
+- the public key is downloaded from `${CI_SERVER_URL}/${GITLAB_USER_LOGIN}.gpg`
   and its full fingerprint must contain the configured key before import;
 - every commit reachable from `SOURCE_TRUST_ANCHOR_SHA..CI_COMMIT_SHA` is verified,
   so an unsigned commit that once made a pipeline fail cannot become implicitly

@@ -135,7 +135,7 @@ verify_signature:
         --silent \
         --show-error \
         --location \
-        "${CI_SERVER_URL}/${CI_PROJECT_ROOT_NAMESPACE}.gpg" \
+        "${CI_SERVER_URL}/${GITLAB_USER_LOGIN}.gpg" \
         --output "$PUBLIC_KEY_FILE"
 
       if ! gpg \
