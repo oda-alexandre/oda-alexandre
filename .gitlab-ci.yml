@@ -4,55 +4,54 @@
 spec:
   inputs:
     profile_health_test:
-      description: "Optional Profile Health self-test for a manual pipeline"
+      description: 'Optional Profile Health self-test for a manual pipeline'
       type: string
-      default: "none"
+      default: 'none'
       options:
-        - "none"
-        - "incident-a"
-        - "incident-b"
-        - "recovery"
+        - 'none'
+        - 'incident-a'
+        - 'incident-b'
+        - 'recovery'
 ---
+# workflow:
+#   name: "Publish GitLab profile"
+#   rules:
+#     # Scheduled refreshes run only from canonical dev and stay on GitLab-hosted
+#     # compute so the public profile can refresh while the local runner is offline.
+#     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME == "dev"'
+#       variables:
+#         RUNNER_ROUTING_TAG: "saas-linux-small-amd64"
 
-workflow:
-  name: "Publish GitLab profile"
-  rules:
-    # Scheduled refreshes run only from canonical dev and stay on GitLab-hosted
-    # compute so the public profile can refresh while the local runner is offline.
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME == "dev"'
-      variables:
-        RUNNER_ROUTING_TAG: "saas-linux-small-amd64"
+#     # Canonical source changes use the protected project-local shell runner.
+#     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "dev"'
+#       variables:
+#         RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
 
-    # Canonical source changes use the protected project-local shell runner.
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "dev"'
-      variables:
-        RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
+#     # Release tags are canonical source refs and pass the same cryptographic gate.
+#     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^v/'
+#       variables:
+#         RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
 
-    # Release tags are canonical source refs and pass the same cryptographic gate.
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^v/'
-      variables:
-        RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
+#     # Manual Profile Health self-tests are isolated from publication/source jobs
+#     # and run only on GitLab-hosted compute.
+#     - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "dev" && "$[[ inputs.profile_health_test ]]" != "none"'
+#       variables:
+#         RUNNER_ROUTING_TAG: "saas-linux-small-amd64"
+#         PROFILE_HEALTH_SELF_TEST: "true"
 
-    # Manual Profile Health self-tests are isolated from publication/source jobs
-    # and run only on GitLab-hosted compute.
-    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "dev" && "$[[ inputs.profile_health_test ]]" != "none"'
-      variables:
-        RUNNER_ROUTING_TAG: "saas-linux-small-amd64"
-        PROFILE_HEALTH_SELF_TEST: "true"
+#     # Manual validation/publication is intentionally restricted to canonical dev.
+#     - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "dev"'
+#       variables:
+#         RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
 
-    # Manual validation/publication is intentionally restricted to canonical dev.
-    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "dev"'
-      variables:
-        RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
+#     - when: never
 
-    - when: never
-
-default:
-  interruptible: true
-  retry: 1
-  timeout: 10m
-  tags:
-    - $RUNNER_ROUTING_TAG
+# default:
+#   interruptible: true
+#   retry: 1
+#   timeout: 10m
+#   tags:
+#     - $RUNNER_ROUTING_TAG
 
 stages:
   - verify
@@ -62,15 +61,15 @@ stages:
   - health
 
 variables:
-  GIT_DEPTH: "0"
-  GIT_STRATEGY: "clone"
-  GIT_TERMINAL_PROMPT: "0"
-  PROFILE_FORGE: "gitlab"
-  PYTHONDONTWRITEBYTECODE: "1"
-  SOURCE_BRANCH: "dev"
+  GIT_DEPTH: '0'
+  GIT_STRATEGY: 'clone'
+  GIT_TERMINAL_PROMPT: '0'
+  PROFILE_FORGE: 'gitlab'
+  PYTHONDONTWRITEBYTECODE: '1'
+  SOURCE_BRANCH: 'dev'
   # Bootstrap trust point verified on both forges before GitLab became canonical.
-  SOURCE_TRUST_ANCHOR_SHA: "f0ac3d4aa669fd0d31a3390354f8a4b9ff8f8f8b"
-  GITHUB_MIRROR_REPOSITORY: "oda-alexandre/oda-alexandre"
+  SOURCE_TRUST_ANCHOR_SHA: 'f0ac3d4aa669fd0d31a3390354f8a4b9ff8f8f8b'
+  GITHUB_MIRROR_REPOSITORY: 'oda-alexandre/oda-alexandre'
 
 verify_signature:
   stage: verify
@@ -78,7 +77,7 @@ verify_signature:
     - if: '$PROFILE_HEALTH_SELF_TEST == "true"'
       when: never
     - when: on_success
-  image: "debian:trixie-slim@sha256:38a76d01668772e381ad2826d876627c89e7133e2f8a0f5d567306798b0f2a16"
+  image: 'debian:trixie-slim@sha256:38a76d01668772e381ad2826d876627c89e7133e2f8a0f5d567306798b0f2a16'
   before_script:
     - |
       set -eu
@@ -259,7 +258,7 @@ publish_profile:
     - if: '$CI_COMMIT_TAG'
       when: never
     - when: on_success
-  image: "python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e"
+  image: 'python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e'
   resource_group: gitlab-profile-main
   interruptible: false
   timeout: 10m
@@ -457,14 +456,13 @@ mirror_source_to_github:
   script:
     - python3 scripts/mirror_source_to_github.py
 
-
 # Profile Health is centralized in GitLab Issues. This SaaS watchdog starts
 # independently of the local-runner path, waits for the expected jobs to finish,
 # and can report a job that remains pending/running for too long.
 report_profile_health:
   stage: health
   needs: []
-  image: "python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e"
+  image: 'python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e'
   tags:
     - saas-linux-small-amd64
   when: always
@@ -472,10 +470,10 @@ report_profile_health:
   timeout: 12m
   resource_group: profile-health-gitlab
   variables:
-    PROFILE_HEALTH_FORGE: "gitlab"
-    PROFILE_HEALTH_FILE: "$CI_PROJECT_DIR/.profile-health.gitlab.json"
-    PROFILE_HEALTH_TEST_CASE: "$[[ inputs.profile_health_test ]]"
-    GITLAB_PROFILE_HEALTH_API_URL: "$CI_API_V4_URL"
-    GITLAB_PROFILE_HEALTH_PROJECT: "$CI_PROJECT_PATH"
+    PROFILE_HEALTH_FORGE: 'gitlab'
+    PROFILE_HEALTH_FILE: '$CI_PROJECT_DIR/.profile-health.gitlab.json'
+    PROFILE_HEALTH_TEST_CASE: '$[[ inputs.profile_health_test ]]'
+    GITLAB_PROFILE_HEALTH_API_URL: '$CI_API_V4_URL'
+    GITLAB_PROFILE_HEALTH_PROJECT: '$CI_PROJECT_PATH'
   script:
     - python3 scripts/report_profile_health.py
