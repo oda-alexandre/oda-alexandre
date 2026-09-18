@@ -25,14 +25,12 @@ workflow:
     # Canonical source changes use the protected project-local shell runner.
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "dev"'
       variables:
-        # RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
-        RUNNER_ROUTING_TAG: 'saas-linux-small-amd64'
+        RUNNER_ROUTING_TAG: 'oda-alexandre-gitlab-runner'
 
     # Release tags are canonical source refs and pass the same cryptographic gate.
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^v/'
       variables:
-        # RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
-        RUNNER_ROUTING_TAG: 'saas-linux-small-amd64'
+        RUNNER_ROUTING_TAG: 'oda-alexandre-gitlab-runner'
 
     # Manual Profile Health self-tests are isolated from publication/source jobs
     # and run only on GitLab-hosted compute.
@@ -44,8 +42,7 @@ workflow:
     # Manual validation/publication is intentionally restricted to canonical dev.
     - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "dev"'
       variables:
-        # RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
-        RUNNER_ROUTING_TAG: 'saas-linux-small-amd64'
+        RUNNER_ROUTING_TAG: 'oda-alexandre-gitlab-runner'
 
     - when: never
 
