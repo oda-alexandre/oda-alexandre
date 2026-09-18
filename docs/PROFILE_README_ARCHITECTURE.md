@@ -434,10 +434,14 @@ automation runs on GitHub.
   service-account token exists only in the dedicated reporting job as an Actions
   secret.
 - GitLab CI adds a `when: always` watchdog on GitLab-hosted compute with
-  `needs: []`, so it starts independently of the local-runner path. It polls the
-  expected pipeline jobs through the GitLab API, reports failed/cancelled jobs,
-  and treats a job still non-terminal after ten minutes as an incident instead of
-  requiring the maintainer to notice a stuck pipeline manually.
+  `needs: []` for canonical `dev`, release-tag, scheduled, and manual `dev`
+  pipelines. It polls the expected canonical jobs through the GitLab API,
+  reports failed/cancelled jobs, and treats a job still non-terminal after ten
+  minutes as an incident instead of requiring the maintainer to notice a stuck
+  pipeline manually. Working/issue branch and merge-request validation pipelines
+  deliberately skip this watchdog: they are pre-integration checks, not public
+  profile operations, and must not create or recover production Profile Health
+  incidents.
 - the GitLab publication job preserves `.profile-health.gitlab.json` as a short-
   lived artifact. After a successful publication job, the watchdog retrieves that
   exact job artifact through the GitLab API and merges recoverable generator
@@ -497,7 +501,10 @@ snapshots.
 
 GitLab is the canonical source authority:
 
-- GitLab `dev` is the editable source branch;
+- GitLab `dev` is the canonical editable source branch;
+- short-lived working/issue branches are created for changes before integration;
+  they are pre-integration refs only, are never published to `main`, and are never
+  mirrored to GitHub;
 - annotated, signed release tags matching `v*` identify commits from that GitLab
   `dev` lineage and are created canonically on GitLab;
 - after CI verifies the complete trusted source history, GitLab mirrors only the
@@ -553,29 +560,54 @@ The GitLab project must be configured before the first publication job runs:
 1. In **Settings -> CI/CD -> Job token permissions**, enable **Allow Git push
    requests to the repository**. Keep cross-project job-token pushes disabled; this
    pipeline only needs same-project publication.
-2. Protect `dev` and `main` and disable force-push on both. Keep **Allowed to
-   merge** set to `No one` and **Allowed to push and merge** set to `Maintainers`
-   on both branches. The latter permission is required for the Maintainer/Owner
-   identity whose pipeline uses `CI_JOB_TOKEN` and already grants the merge
-   permission GitLab requires for protected-branch schedules; do not widen the
-   separate merge rule just for scheduling. No GitHub -> GitLab deploy key is
-   permitted on either branch. Protect the `v*` namespace as immutable release
-   refs.
-3. Store `AUTHORIZED_GPG_FINGERPRINT`, `HTB_TOKEN`, `HACKERONE_API_TOKEN`,
-   `GITHUB_MIRROR_APP_ID`, and `GITHUB_MIRROR_APP_PRIVATE_KEY_B64` as protected
-   GitLab CI/CD variables. The fingerprint and App ID are identifiers/trust
-   configuration rather than secrets. External-platform tokens and the Base64
-   private key are `Masked and hidden` secrets and must never be written into the
-   repository or logs.
-4. Register one project-local **system-mode shell runner** named `oda-alexandre`
-   and tagged `oda-alexandre-gitlab-runner`; disable untagged jobs and mark it
-   protected. This intentionally matches the existing Starfighter host model and
-   avoids GitLab.com hosted-runner minutes for source-changing `dev`, `v*`, and
-   manual pipelines. The runner service executes as the dedicated `gitlab-runner`
-   account, so `git`, `gpg`, `curl`, `python3`, `rsync`, and `gitleaks` must be
-   available on that account's PATH. Scheduled refreshes use
-   `saas-linux-small-amd64` and the pinned job images so the public profile can
-   still refresh when the local runner is offline.
+2. Protect `dev` and `main` and disable force-push on both. For `dev`, set
+   **Allowed to merge** to `Maintainers` and **Allowed to push and merge** to
+   `No one` so all source integration goes through a merge request. For generated
+   `main`, keep **Allowed to merge** at `No one` and **Allowed to push and merge**
+   at `Maintainers`; the Maintainer/Owner identity behind the canonical pipeline
+   needs that protected-branch permission for the same-project `CI_JOB_TOKEN`
+   publication push. No GitHub -> GitLab deploy key is permitted on either branch.
+   Protect the `v*` namespace as immutable release refs.
+3. Store `AUTHORIZED_GPG_FINGERPRINT` in GitLab CI/CD variables with environment
+   scope `All`, **Protected disabled**, and optionally `Masked`/`Hidden` enabled.
+   It is a public trust identifier rather than a secret, and working/issue branch
+   pipelines need it for pre-integration signature validation. Keep `HTB_TOKEN`,
+   `HACKERONE_API_TOKEN`, `GITLAB_PROFILE_HEALTH_TOKEN`, and
+   `GITHUB_MIRROR_APP_PRIVATE_KEY_B64` protected and `Masked and hidden`.
+   `GITHUB_MIRROR_APP_ID` is an identifier rather than a secret and is needed only
+   by canonical mirroring. No credential value is written into the repository.
+4. Register one project-local **Docker executor** runner named
+   `oda-alexandre` and tagged `oda-alexandre-gitlab-runner`; disable untagged jobs.
+   Do **not** mark this runner as a protected runner: its purpose is to execute
+   pipelines for short-lived, normally unprotected working/issue branches. Keep it
+   project-scoped, non-privileged, do not mount the host Docker socket or sensitive
+   host paths, and restrict `allowed_images` when practical. The host only needs a
+   working GitLab Runner + Docker setup. Job dependencies are supplied by the images
+   declared in `.gitlab-ci.yml`; `git`, `gpg`, `curl`, `python3`, `rsync`, `openssl`,
+   and `gitleaks` are not host prerequisites.
+
+   Runner selection is automatic in `.gitlab-ci.yml` and requires no CI/CD mode
+   variable or manual YAML switch:
+
+   - pushes to canonical `dev`, signed `v*` release tags, schedules on `dev`, and
+     manual pipelines on `dev` use `saas-linux-small-amd64`;
+   - pushes to any project source branch other than `dev` and generated `main` use
+     `oda-alexandre-gitlab-runner`;
+   - merge-request pipelines from project-owned working/issue branches use the local
+     Docker runner. Merge requests from forks are deliberately excluded from local
+     compute;
+   - once a working branch has an open merge request, the duplicate push pipeline is
+     suppressed and the merge-request pipeline becomes the pre-integration check;
+   - generated `main` is never treated as a working branch and does not receive a
+     source-validation pipeline.
+
+   Working-branch and project-owned merge-request pipelines run signature
+   validation plus secret scanning on the local Docker runner without protected
+   publication credentials. Signature validation uses only the unprotected
+   fingerprint trust identifier and the public GitLab GPG key endpoint. Canonical
+   publication, full-history signature revalidation, source mirroring, and Profile
+   Health remain on GitLab-hosted compute. This keeps the public project autonomous
+   even when the local runner is offline.
 5. Create a daily GitLab pipeline schedule targeting `dev` after the first
    end-to-end publication succeeds. Use cron `10 0 * * *` with the schedule
    timezone explicitly set to **UTC**, keeping a small offset from the GitHub
@@ -588,23 +620,32 @@ that rejects unsigned commits is a Premium/Ultimate feature. This project theref
 uses CI as a compensating publication/mirroring gate. It deliberately validates a
 stable source-history trust boundary rather than only the most recent push range:
 
-- `AUTHORIZED_GPG_FINGERPRINT` lives outside the repository as a protected CI/CD
-  variable and identifies the only accepted signing key;
+- `AUTHORIZED_GPG_FINGERPRINT` lives outside the repository as a GitLab CI/CD
+  variable with `Protected` disabled so unprotected working branches can use it;
+  it identifies the only accepted signing key and is not a secret;
+- on a working/issue branch, `verify_signature` computes the merge base between the
+  immutable source-head commit and `origin/dev`, then verifies every commit reachable
+  from that merge base through the source head against the authorized key.
+  Project-owned merge requests repeat this pre-integration check and must target
+  `dev`; merged-result/train pipelines verify the original source-head object rather
+  than GitLab's synthetic merge commit;
 - `SOURCE_TRUST_ANCHOR_SHA` is the bootstrap commit verified on both forges before
-  the canonical GitLab history advanced. The pipeline verifies that anchor itself
-  on every run;
+  the canonical GitLab history advanced. Canonical `dev` and release pipelines
+  verify that anchor itself on every run;
 - the public key is downloaded from `${CI_SERVER_URL}/${GITLAB_USER_LOGIN}.gpg`
   and its full fingerprint must contain the configured key before import;
-- every commit reachable from `SOURCE_TRUST_ANCHOR_SHA..CI_COMMIT_SHA` is verified,
-  so an unsigned commit that once made a pipeline fail cannot become implicitly
-  trusted by a later signed commit;
+- on canonical pipelines, every commit reachable from
+  `SOURCE_TRUST_ANCHOR_SHA..CI_COMMIT_SHA` is verified, so an unsigned commit that
+  once made a pipeline fail cannot become implicitly trusted by a later signed
+  commit;
 - every pushed tag in the protected `v*` namespace enters CI; the tag name must
   match the supported version format, the release must be annotated, it must target
   a commit in canonical `dev` history, and both the tag object and all source history
   through its target must validate against the authorized key;
-- schedule and manual pipelines are accepted only when they target `dev`, so the
-  immutable `CI_COMMIT_SHA` that is verified is also the exact source object later
-  published;
+- scheduled canonical publication and Profile Health self-tests are accepted only
+  when they target `dev`, so the immutable `CI_COMMIT_SHA` that is verified is also
+  the exact source object later published. Manual pipelines on working branches are
+  validation-only and cannot publish or mirror source;
 - `publish_profile` is intentionally skipped for tag pipelines. Tags version source
   history; they do not independently refresh the GitLab publication branch.
 
@@ -614,12 +655,20 @@ GitLab `dev` before the pipeline fails. It cannot, however, be published to GitL
 reject that unsigned history. Protected branch/tag permissions remain part of the
 control boundary.
 
-A Gitleaks job scans source-changing pipelines on the protected project-local shell
-runner. It is intentionally skipped for daily schedules because those runs do not
-introduce a new source tree and should consume only the minimum hosted-runner
-compute required for verification and publication. Docker `image:` declarations
-are relevant only to the hosted schedule path; the shell executor runs directly on
-the trusted host and therefore uses the preinstalled local toolchain.
+A Gitleaks job scans source-changing pipelines in the pinned official Gitleaks
+container. It is intentionally skipped for daily schedules because those runs do
+not introduce a new source tree. On working/issue branches and their merge requests,
+`verify_signature` and this secret scan are the pre-integration CI checks and run on
+the project-local Docker runner without protected publication credentials. After
+integration, canonical `dev`/release pipelines revalidate the complete trusted
+history on GitLab-hosted compute before publication or mirroring. Publication, the
+GitHub source mirror, and Profile Health remain canonical SaaS-only operations.
+
+Every executable dependency used by GitLab CI is provided by the selected job image
+(or installed inside that disposable container), so the local Docker executor and
+GitLab hosted Docker executor use the same containerized toolchain for any job that
+can run in both locations. Runner routing changes compute location, not host
+prerequisites.
 
 ### GitLab -> GitHub source mirror credentials and rules
 

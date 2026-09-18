@@ -4,46 +4,67 @@
 spec:
   inputs:
     profile_health_test:
-      description: "Optional Profile Health self-test for a manual pipeline"
+      description: 'Optional Profile Health self-test for a manual pipeline'
       type: string
-      default: "none"
+      default: 'none'
       options:
-        - "none"
-        - "incident-a"
-        - "incident-b"
-        - "recovery"
+        - 'none'
+        - 'incident-a'
+        - 'incident-b'
+        - 'recovery'
 ---
-
 workflow:
-  name: "Publish GitLab profile"
+  name: 'Publish GitLab profile'
   rules:
-    # Scheduled refreshes run only from canonical dev and stay on GitLab-hosted
-    # compute so the public profile can refresh while the local runner is offline.
+    # Scheduled refreshes always use GitLab-hosted compute so publication stays
+    # autonomous even when the project-local Docker runner is offline.
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME == "dev"'
       variables:
-        RUNNER_ROUTING_TAG: "saas-linux-small-amd64"
-
-    # Canonical source changes use the protected project-local shell runner.
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "dev"'
-      variables:
-        RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
-
-    # Release tags are canonical source refs and pass the same cryptographic gate.
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^v/'
-      variables:
-        RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
+        RUNNER_ROUTING_TAG: 'saas-linux-small-amd64'
 
     # Manual Profile Health self-tests are isolated from publication/source jobs
-    # and run only on GitLab-hosted compute.
+    # and always run on GitLab-hosted compute.
     - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "dev" && "$[[ inputs.profile_health_test ]]" != "none"'
       variables:
-        RUNNER_ROUTING_TAG: "saas-linux-small-amd64"
-        PROFILE_HEALTH_SELF_TEST: "true"
+        RUNNER_ROUTING_TAG: 'saas-linux-small-amd64'
+        PROFILE_HEALTH_SELF_TEST: 'true'
 
-    # Manual validation/publication is intentionally restricted to canonical dev.
+    # Canonical source changes and releases always use GitLab-hosted compute.
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "dev"'
+      variables:
+        RUNNER_ROUTING_TAG: 'saas-linux-small-amd64'
+
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^v/'
+      variables:
+        RUNNER_ROUTING_TAG: 'saas-linux-small-amd64'
+
+    # Manual canonical validation/publication also runs independently of the
+    # project-local runner.
     - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "dev"'
       variables:
-        RUNNER_ROUTING_TAG: "oda-alexandre-gitlab-runner"
+        RUNNER_ROUTING_TAG: 'saas-linux-small-amd64'
+
+    # Once a working branch has an open merge request, prefer the merge-request
+    # pipeline and suppress the duplicate branch pipeline triggered by the push.
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != "dev" && $CI_COMMIT_BRANCH != "main" && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+
+    # Merge requests from project-owned working/issue branches use the local
+    # Docker runner. Fork merge requests never execute on private local compute.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_SOURCE_PROJECT_ID == $CI_PROJECT_ID && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev" && $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME != "dev" && $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME != "main"'
+      variables:
+        RUNNER_ROUTING_TAG: 'oda-alexandre-gitlab-runner'
+
+    # Any pushed source branch other than dev/main is work in progress and runs
+    # locally. main is generated publication output and never a test branch.
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != "dev" && $CI_COMMIT_BRANCH != "main"'
+      variables:
+        RUNNER_ROUTING_TAG: 'oda-alexandre-gitlab-runner'
+
+    # Allow an explicit manual validation of a working branch on the local runner.
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != "dev" && $CI_COMMIT_BRANCH != "main"'
+      variables:
+        RUNNER_ROUTING_TAG: 'oda-alexandre-gitlab-runner'
 
     - when: never
 
@@ -62,38 +83,43 @@ stages:
   - health
 
 variables:
-  GIT_DEPTH: "0"
-  GIT_STRATEGY: "clone"
-  GIT_TERMINAL_PROMPT: "0"
-  PROFILE_FORGE: "gitlab"
-  PYTHONDONTWRITEBYTECODE: "1"
-  SOURCE_BRANCH: "dev"
+  GIT_DEPTH: '0'
+  GIT_STRATEGY: 'clone'
+  GIT_TERMINAL_PROMPT: '0'
+  PROFILE_FORGE: 'gitlab'
+  PYTHONDONTWRITEBYTECODE: '1'
+  SOURCE_BRANCH: 'dev'
   # Bootstrap trust point verified on both forges before GitLab became canonical.
-  SOURCE_TRUST_ANCHOR_SHA: "f0ac3d4aa669fd0d31a3390354f8a4b9ff8f8f8b"
-  GITHUB_MIRROR_REPOSITORY: "oda-alexandre/oda-alexandre"
+  SOURCE_TRUST_ANCHOR_SHA: 'f0ac3d4aa669fd0d31a3390354f8a4b9ff8f8f8b'
+  GITHUB_MIRROR_REPOSITORY: 'oda-alexandre/oda-alexandre'
 
 verify_signature:
   stage: verify
   rules:
     - if: '$PROFILE_HEALTH_SELF_TEST == "true"'
       when: never
-    - when: on_success
-  image: "debian:trixie-slim@sha256:38a76d01668772e381ad2826d876627c89e7133e2f8a0f5d567306798b0f2a16"
+    - if: '$CI_COMMIT_TAG'
+      when: on_success
+    - if: '$CI_COMMIT_REF_NAME == "dev"'
+      when: on_success
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_SOURCE_PROJECT_ID == $CI_PROJECT_ID && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev"'
+      when: on_success
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != "dev" && $CI_COMMIT_BRANCH != "main"'
+      when: on_success
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != "dev" && $CI_COMMIT_BRANCH != "main"'
+      when: on_success
+    - when: never
+  image: 'debian:trixie-slim@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f'
   before_script:
     - |
       set -eu
-      if [ "$CI_PIPELINE_SOURCE" = "schedule" ]; then
-        apt-get update -qq
-        apt-get install --no-install-recommends -y -qq gnupg git curl ca-certificates
-        rm -rf /var/lib/apt/lists/*
-      else
-        for command_name in git gpg curl; do
-          command -v "$command_name" >/dev/null 2>&1 || {
-            echo "ERROR: local shell runner is missing required command: $command_name" >&2
-            exit 1
-          }
-        done
-      fi
+      apt-get update -qq
+      apt-get install --no-install-recommends -y -qq \
+        ca-certificates \
+        curl \
+        git \
+        gnupg
+      rm -rf /var/lib/apt/lists/*
   script:
     - |
       set -euo pipefail
@@ -114,12 +140,6 @@ verify_signature:
       if [ "${#EXPECTED_FPR}" -ne 40 ] && [ "${#EXPECTED_FPR}" -ne 64 ]; then
         fail "AUTHORIZED_GPG_FINGERPRINT must contain a full 40- or 64-hex-character fingerprint."
       fi
-
-      case "${SOURCE_TRUST_ANCHOR_SHA:?SOURCE_TRUST_ANCHOR_SHA is required}" in
-        *[!0-9a-fA-F]*|'') fail "SOURCE_TRUST_ANCHOR_SHA must be hexadecimal." ;;
-      esac
-      [ "${#SOURCE_TRUST_ANCHOR_SHA}" -eq 40 ] || \
-        fail "SOURCE_TRUST_ANCHOR_SHA must be a full 40-character commit id."
 
       GNUPGHOME="$(mktemp -d)"
       PUBLIC_KEY_FILE="$GNUPGHOME/profile-owner.gpg"
@@ -193,7 +213,10 @@ verify_signature:
       }
 
       SOURCE_COMMIT="$CI_COMMIT_SHA"
+      VERIFICATION_SCOPE="working"
+
       if [ -n "${CI_COMMIT_TAG:-}" ]; then
+        VERIFICATION_SCOPE="canonical"
         if ! printf '%s\n' "$CI_COMMIT_TAG" |
           grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$'; then
           fail "Release tag $CI_COMMIT_TAG does not match the supported release v* format."
@@ -207,19 +230,72 @@ verify_signature:
         git merge-base --is-ancestor "$SOURCE_COMMIT" "refs/remotes/origin/$SOURCE_BRANCH" || \
           fail "Release tag target is not part of canonical dev history."
         verify_git_object tag "$TAG_REF"
+      elif [ "${CI_COMMIT_REF_NAME:-}" = "$SOURCE_BRANCH" ]; then
+        VERIFICATION_SCOPE="canonical"
       else
-        [ "${CI_COMMIT_REF_NAME:-}" = "$SOURCE_BRANCH" ] || \
-          fail "Non-tag pipelines must run from canonical dev."
+        case "${CI_PIPELINE_SOURCE:-}" in
+          push|web)
+            [ -n "${CI_COMMIT_BRANCH:-}" ] || \
+              fail "Working-branch validation requires CI_COMMIT_BRANCH."
+            [ "$CI_COMMIT_BRANCH" != "main" ] || \
+              fail "Generated main is not a working source branch."
+            ;;
+          merge_request_event)
+            [ "${CI_MERGE_REQUEST_SOURCE_PROJECT_ID:-}" = "${CI_PROJECT_ID:-}" ] || \
+              fail "Fork merge requests are not allowed to use project-local signature validation."
+            [ "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-}" = "$SOURCE_BRANCH" ] || \
+              fail "Working merge requests must target canonical $SOURCE_BRANCH."
+            # Detached MR pipelines use CI_COMMIT_SHA for the source head. Merged
+            # result/train pipelines can use a synthetic commit, so verify the
+            # original source-head object when GitLab exposes its immutable SHA.
+            if [ -n "${CI_MERGE_REQUEST_SOURCE_BRANCH_SHA:-}" ]; then
+              SOURCE_COMMIT="$CI_MERGE_REQUEST_SOURCE_BRANCH_SHA"
+              git cat-file -e "${SOURCE_COMMIT}^{commit}" || \
+                fail "Merge-request source commit is unavailable in the fetched repository."
+            fi
+            ;;
+          *)
+            fail "Unsupported pipeline source for working-branch signature validation: ${CI_PIPELINE_SOURCE:-unknown}."
+            ;;
+        esac
       fi
+
+      if [ "$VERIFICATION_SCOPE" = "working" ]; then
+        BASE_COMMIT="$(git merge-base "$SOURCE_COMMIT" "refs/remotes/origin/$SOURCE_BRANCH")" || \
+          fail "Working branch does not share history with canonical $SOURCE_BRANCH."
+        [ -n "$BASE_COMMIT" ] || \
+          fail "Could not determine the working-branch merge base with canonical $SOURCE_BRANCH."
+
+        echo "[*] Verifying working-branch commits after ${BASE_COMMIT}..."
+        working_commits="$(git rev-list --reverse "${BASE_COMMIT}..${SOURCE_COMMIT}")"
+        if [ -z "$working_commits" ]; then
+          echo "[ok] No working-branch commits require signature validation."
+          exit 0
+        fi
+
+        printf '%s\n' "$working_commits" |
+          while IFS= read -r commit_sha; do
+            [ -n "$commit_sha" ] && verify_git_object commit "$commit_sha"
+          done
+
+        echo "[ok] Authorized GPG signatures validated for all working-branch commits."
+        exit 0
+      fi
+
+      case "${SOURCE_TRUST_ANCHOR_SHA:?SOURCE_TRUST_ANCHOR_SHA is required}" in
+        *[!0-9a-fA-F]*|'') fail "SOURCE_TRUST_ANCHOR_SHA must be hexadecimal." ;;
+      esac
+      [ "${#SOURCE_TRUST_ANCHOR_SHA}" -eq 40 ] || \
+        fail "SOURCE_TRUST_ANCHOR_SHA must be a full 40-character commit id."
 
       git cat-file -e "${SOURCE_TRUST_ANCHOR_SHA}^{commit}" || \
         fail "Configured source trust anchor does not exist in repository history."
       git merge-base --is-ancestor "$SOURCE_TRUST_ANCHOR_SHA" "$SOURCE_COMMIT" || \
         fail "Source commit does not descend from the configured trust anchor."
 
-      # Validate the stable bootstrap point and every reachable source commit
-      # after it. A failed unsigned push therefore remains blocked on all later
-      # pipelines instead of disappearing from the next push range.
+      # Canonical pipelines revalidate the stable bootstrap point and every
+      # reachable source commit after it. A failed unsigned push therefore remains
+      # blocked on all later publication/mirroring pipelines.
       verify_git_object commit "$SOURCE_TRUST_ANCHOR_SHA"
       git rev-list --reverse "$SOURCE_TRUST_ANCHOR_SHA..$SOURCE_COMMIT" |
         while IFS= read -r commit_sha; do
@@ -233,17 +309,15 @@ verify_signature:
 # GitLab-hosted compute.
 test_secrets:
   stage: test
+  image:
+    name: 'ghcr.io/gitleaks/gitleaks:v8.30.0@sha256:691af3c7c5a48b16f187ce3446d5f194838f91238f27270ed36eef6359a574d9'
+    entrypoint: ['']
   needs:
     - job: verify_signature
       artifacts: false
+      optional: true
   script:
-    - |
-      set -eu
-      command -v gitleaks >/dev/null 2>&1 || {
-        echo "ERROR: local shell runner is missing required command: gitleaks" >&2
-        exit 1
-      }
-      gitleaks detect --source . -v
+    - gitleaks git -v .
   rules:
     - if: '$PROFILE_HEALTH_SELF_TEST == "true"'
       when: never
@@ -258,8 +332,10 @@ publish_profile:
       when: never
     - if: '$CI_COMMIT_TAG'
       when: never
-    - when: on_success
-  image: "python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e"
+    - if: '$CI_COMMIT_REF_NAME == "dev"'
+      when: on_success
+    - when: never
+  image: 'python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e'
   resource_group: gitlab-profile-main
   interruptible: false
   timeout: 10m
@@ -277,18 +353,12 @@ publish_profile:
   before_script:
     - |
       set -eu
-      if [ "$CI_PIPELINE_SOURCE" = "schedule" ]; then
-        apt-get update -qq
-        apt-get install --no-install-recommends -y -qq git rsync ca-certificates
-        rm -rf /var/lib/apt/lists/*
-      else
-        for command_name in git rsync python3; do
-          command -v "$command_name" >/dev/null 2>&1 || {
-            echo "ERROR: local shell runner is missing required command: $command_name" >&2
-            exit 1
-          }
-        done
-      fi
+      apt-get update -qq
+      apt-get install --no-install-recommends -y -qq \
+        ca-certificates \
+        git \
+        rsync
+      rm -rf /var/lib/apt/lists/*
   script:
     - |
       set -eu
@@ -438,6 +508,7 @@ publish_profile:
 
 mirror_source_to_github:
   stage: mirror
+  image: 'python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e'
   resource_group: github-source-mirror
   interruptible: false
   timeout: 5m
@@ -448,34 +519,40 @@ mirror_source_to_github:
   before_script:
     - |
       set -eu
-      for command_name in git python3 openssl; do
-        command -v "$command_name" >/dev/null 2>&1 || {
-          echo "ERROR: local shell runner is missing required command: $command_name" >&2
-          exit 1
-        }
-      done
+      apt-get update -qq
+      apt-get install --no-install-recommends -y -qq \
+        ca-certificates \
+        git \
+        openssl
+      rm -rf /var/lib/apt/lists/*
   script:
     - python3 scripts/mirror_source_to_github.py
 
-
 # Profile Health is centralized in GitLab Issues. This SaaS watchdog starts
-# independently of the local-runner path, waits for the expected jobs to finish,
+# independently of the primary runner route, waits for the expected jobs to finish,
 # and can report a job that remains pending/running for too long.
 report_profile_health:
   stage: health
   needs: []
-  image: "python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e"
+  image: 'python:3.13.15-slim-bookworm@sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e'
   tags:
     - saas-linux-small-amd64
-  when: always
+  rules:
+    - if: '$PROFILE_HEALTH_SELF_TEST == "true"'
+      when: always
+    - if: '$CI_COMMIT_TAG'
+      when: always
+    - if: '$CI_COMMIT_REF_NAME == "dev"'
+      when: always
+    - when: never
   interruptible: false
   timeout: 12m
   resource_group: profile-health-gitlab
   variables:
-    PROFILE_HEALTH_FORGE: "gitlab"
-    PROFILE_HEALTH_FILE: "$CI_PROJECT_DIR/.profile-health.gitlab.json"
-    PROFILE_HEALTH_TEST_CASE: "$[[ inputs.profile_health_test ]]"
-    GITLAB_PROFILE_HEALTH_API_URL: "$CI_API_V4_URL"
-    GITLAB_PROFILE_HEALTH_PROJECT: "$CI_PROJECT_PATH"
+    PROFILE_HEALTH_FORGE: 'gitlab'
+    PROFILE_HEALTH_FILE: '$CI_PROJECT_DIR/.profile-health.gitlab.json'
+    PROFILE_HEALTH_TEST_CASE: '$[[ inputs.profile_health_test ]]'
+    GITLAB_PROFILE_HEALTH_API_URL: '$CI_API_V4_URL'
+    GITLAB_PROFILE_HEALTH_PROJECT: '$CI_PROJECT_PATH'
   script:
     - python3 scripts/report_profile_health.py
