@@ -51,7 +51,7 @@ workflow:
 
     # Merge requests from project-owned working/issue branches use the local
     # Docker runner. Fork merge requests never execute on private local compute.
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_SOURCE_PROJECT_ID == $CI_PROJECT_ID && $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME != "dev" && $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME != "main"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_SOURCE_PROJECT_ID == $CI_PROJECT_ID && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev" && $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME != "dev" && $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME != "main"'
       variables:
         RUNNER_ROUTING_TAG: 'oda-alexandre-gitlab-runner'
 
@@ -102,6 +102,12 @@ verify_signature:
       when: on_success
     - if: '$CI_COMMIT_REF_NAME == "dev"'
       when: on_success
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_SOURCE_PROJECT_ID == $CI_PROJECT_ID && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev"'
+      when: on_success
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != "dev" && $CI_COMMIT_BRANCH != "main"'
+      when: on_success
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != "dev" && $CI_COMMIT_BRANCH != "main"'
+      when: on_success
     - when: never
   image: 'debian:trixie-slim@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f'
   before_script:
@@ -134,12 +140,6 @@ verify_signature:
       if [ "${#EXPECTED_FPR}" -ne 40 ] && [ "${#EXPECTED_FPR}" -ne 64 ]; then
         fail "AUTHORIZED_GPG_FINGERPRINT must contain a full 40- or 64-hex-character fingerprint."
       fi
-
-      case "${SOURCE_TRUST_ANCHOR_SHA:?SOURCE_TRUST_ANCHOR_SHA is required}" in
-        *[!0-9a-fA-F]*|'') fail "SOURCE_TRUST_ANCHOR_SHA must be hexadecimal." ;;
-      esac
-      [ "${#SOURCE_TRUST_ANCHOR_SHA}" -eq 40 ] || \
-        fail "SOURCE_TRUST_ANCHOR_SHA must be a full 40-character commit id."
 
       GNUPGHOME="$(mktemp -d)"
       PUBLIC_KEY_FILE="$GNUPGHOME/profile-owner.gpg"
@@ -213,7 +213,10 @@ verify_signature:
       }
 
       SOURCE_COMMIT="$CI_COMMIT_SHA"
+      VERIFICATION_SCOPE="working"
+
       if [ -n "${CI_COMMIT_TAG:-}" ]; then
+        VERIFICATION_SCOPE="canonical"
         if ! printf '%s\n' "$CI_COMMIT_TAG" |
           grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$'; then
           fail "Release tag $CI_COMMIT_TAG does not match the supported release v* format."
@@ -227,19 +230,72 @@ verify_signature:
         git merge-base --is-ancestor "$SOURCE_COMMIT" "refs/remotes/origin/$SOURCE_BRANCH" || \
           fail "Release tag target is not part of canonical dev history."
         verify_git_object tag "$TAG_REF"
+      elif [ "${CI_COMMIT_REF_NAME:-}" = "$SOURCE_BRANCH" ]; then
+        VERIFICATION_SCOPE="canonical"
       else
-        [ "${CI_COMMIT_REF_NAME:-}" = "$SOURCE_BRANCH" ] || \
-          fail "Non-tag pipelines must run from canonical dev."
+        case "${CI_PIPELINE_SOURCE:-}" in
+          push|web)
+            [ -n "${CI_COMMIT_BRANCH:-}" ] || \
+              fail "Working-branch validation requires CI_COMMIT_BRANCH."
+            [ "$CI_COMMIT_BRANCH" != "main" ] || \
+              fail "Generated main is not a working source branch."
+            ;;
+          merge_request_event)
+            [ "${CI_MERGE_REQUEST_SOURCE_PROJECT_ID:-}" = "${CI_PROJECT_ID:-}" ] || \
+              fail "Fork merge requests are not allowed to use project-local signature validation."
+            [ "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-}" = "$SOURCE_BRANCH" ] || \
+              fail "Working merge requests must target canonical $SOURCE_BRANCH."
+            # Detached MR pipelines use CI_COMMIT_SHA for the source head. Merged
+            # result/train pipelines can use a synthetic commit, so verify the
+            # original source-head object when GitLab exposes its immutable SHA.
+            if [ -n "${CI_MERGE_REQUEST_SOURCE_BRANCH_SHA:-}" ]; then
+              SOURCE_COMMIT="$CI_MERGE_REQUEST_SOURCE_BRANCH_SHA"
+              git cat-file -e "${SOURCE_COMMIT}^{commit}" || \
+                fail "Merge-request source commit is unavailable in the fetched repository."
+            fi
+            ;;
+          *)
+            fail "Unsupported pipeline source for working-branch signature validation: ${CI_PIPELINE_SOURCE:-unknown}."
+            ;;
+        esac
       fi
+
+      if [ "$VERIFICATION_SCOPE" = "working" ]; then
+        BASE_COMMIT="$(git merge-base "$SOURCE_COMMIT" "refs/remotes/origin/$SOURCE_BRANCH")" || \
+          fail "Working branch does not share history with canonical $SOURCE_BRANCH."
+        [ -n "$BASE_COMMIT" ] || \
+          fail "Could not determine the working-branch merge base with canonical $SOURCE_BRANCH."
+
+        echo "[*] Verifying working-branch commits after ${BASE_COMMIT}..."
+        working_commits="$(git rev-list --reverse "${BASE_COMMIT}..${SOURCE_COMMIT}")"
+        if [ -z "$working_commits" ]; then
+          echo "[ok] No working-branch commits require signature validation."
+          exit 0
+        fi
+
+        printf '%s\n' "$working_commits" |
+          while IFS= read -r commit_sha; do
+            [ -n "$commit_sha" ] && verify_git_object commit "$commit_sha"
+          done
+
+        echo "[ok] Authorized GPG signatures validated for all working-branch commits."
+        exit 0
+      fi
+
+      case "${SOURCE_TRUST_ANCHOR_SHA:?SOURCE_TRUST_ANCHOR_SHA is required}" in
+        *[!0-9a-fA-F]*|'') fail "SOURCE_TRUST_ANCHOR_SHA must be hexadecimal." ;;
+      esac
+      [ "${#SOURCE_TRUST_ANCHOR_SHA}" -eq 40 ] || \
+        fail "SOURCE_TRUST_ANCHOR_SHA must be a full 40-character commit id."
 
       git cat-file -e "${SOURCE_TRUST_ANCHOR_SHA}^{commit}" || \
         fail "Configured source trust anchor does not exist in repository history."
       git merge-base --is-ancestor "$SOURCE_TRUST_ANCHOR_SHA" "$SOURCE_COMMIT" || \
         fail "Source commit does not descend from the configured trust anchor."
 
-      # Validate the stable bootstrap point and every reachable source commit
-      # after it. A failed unsigned push therefore remains blocked on all later
-      # pipelines instead of disappearing from the next push range.
+      # Canonical pipelines revalidate the stable bootstrap point and every
+      # reachable source commit after it. A failed unsigned push therefore remains
+      # blocked on all later publication/mirroring pipelines.
       verify_git_object commit "$SOURCE_TRUST_ANCHOR_SHA"
       git rev-list --reverse "$SOURCE_TRUST_ANCHOR_SHA..$SOURCE_COMMIT" |
         while IFS= read -r commit_sha; do
