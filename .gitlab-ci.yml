@@ -1,18 +1,6 @@
 # SPDX-FileCopyrightText: 2024-2026 ODA Alexandre
 # SPDX-License-Identifier: EUPL-1.2+
 
-spec:
-  inputs:
-    profile_health_test:
-      description: 'Optional Profile Health self-test for a manual pipeline'
-      type: string
-      default: 'none'
-      options:
-        - 'none'
-        - 'incident-a'
-        - 'incident-b'
-        - 'recovery'
----
 workflow:
   name: 'Publish GitLab profile'
   rules:
@@ -21,13 +9,6 @@ workflow:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME == "dev"'
       variables:
         RUNNER_ROUTING_TAG: 'saas-linux-small-amd64'
-
-    # Manual Profile Health self-tests are isolated from publication/source jobs
-    # and always run on GitLab-hosted compute.
-    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "dev" && "$[[ inputs.profile_health_test ]]" != "none"'
-      variables:
-        RUNNER_ROUTING_TAG: 'saas-linux-small-amd64'
-        PROFILE_HEALTH_SELF_TEST: 'true'
 
     # Canonical source changes and releases always use GitLab-hosted compute.
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "dev"'
@@ -96,8 +77,6 @@ variables:
 verify_signature:
   stage: verify
   rules:
-    - if: '$PROFILE_HEALTH_SELF_TEST == "true"'
-      when: never
     - if: '$CI_COMMIT_TAG'
       when: on_success
     - if: '$CI_COMMIT_REF_NAME == "dev"'
@@ -319,8 +298,6 @@ test_secrets:
   script:
     - gitleaks git -v .
   rules:
-    - if: '$PROFILE_HEALTH_SELF_TEST == "true"'
-      when: never
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: never
     - when: on_success
@@ -328,8 +305,6 @@ test_secrets:
 publish_profile:
   stage: publish
   rules:
-    - if: '$PROFILE_HEALTH_SELF_TEST == "true"'
-      when: never
     - if: '$CI_COMMIT_TAG'
       when: never
     - if: '$CI_COMMIT_REF_NAME == "dev"'
@@ -538,8 +513,6 @@ report_profile_health:
   tags:
     - saas-linux-small-amd64
   rules:
-    - if: '$PROFILE_HEALTH_SELF_TEST == "true"'
-      when: always
     - if: '$CI_COMMIT_TAG'
       when: always
     - if: '$CI_COMMIT_REF_NAME == "dev"'
@@ -551,7 +524,6 @@ report_profile_health:
   variables:
     PROFILE_HEALTH_FORGE: 'gitlab'
     PROFILE_HEALTH_FILE: '$CI_PROJECT_DIR/.profile-health.gitlab.json'
-    PROFILE_HEALTH_TEST_CASE: '$[[ inputs.profile_health_test ]]'
     GITLAB_PROFILE_HEALTH_API_URL: '$CI_API_V4_URL'
     GITLAB_PROFILE_HEALTH_PROJECT: '$CI_PROJECT_PATH'
   script:

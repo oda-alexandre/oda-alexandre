@@ -111,7 +111,7 @@
 </p>
 
 <p align="center">
-  <img src="./assets/generated/github-activity.svg?v=d658a45a3adb" alt="GitHub Activity · 365 Days">
+  <img src="./assets/generated/github-activity.svg?v=225ecd719d1a" alt="GitHub Activity · 365 Days">
 </p>
 <!-- SECTION:GITHUB-STATS:CONTENT:END -->
 

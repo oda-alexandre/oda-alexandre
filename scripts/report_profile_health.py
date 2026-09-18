@@ -51,14 +51,6 @@ API_URL = (
     or "https://gitlab.com/api/v4"
 ).rstrip("/")
 HEALTH_FILE = Path(os.environ.get("PROFILE_HEALTH_FILE", ".profile-health.json"))
-TEST_NONE = "none"
-TEST_INCIDENT_A = "incident-a"
-TEST_INCIDENT_B = "incident-b"
-TEST_RECOVERY = "recovery"
-TEST_CASE = os.environ.get("PROFILE_HEALTH_TEST_CASE", "").strip().lower()
-VALID_TEST_CASES = {"", TEST_NONE, TEST_INCIDENT_A, TEST_INCIDENT_B, TEST_RECOVERY}
-SELF_TEST_MARKER = "<!-- profile-health-self-test -->"
-SELF_TEST_COMPONENT = "Profile Health self-test"
 
 if FORGE not in {"github", "gitlab"}:
     raise SystemExit("PROFILE_HEALTH_FORGE must be either 'github' or 'gitlab'")
@@ -68,11 +60,6 @@ if "/" not in PROJECT:
     raise SystemExit("GITLAB_PROFILE_HEALTH_PROJECT must use namespace/project format")
 if not API_URL.startswith("https://"):
     raise SystemExit("GITLAB_PROFILE_HEALTH_API_URL must use HTTPS")
-if TEST_CASE not in VALID_TEST_CASES:
-    raise SystemExit(
-        "PROFILE_HEALTH_TEST_CASE must be one of: none, incident-a, incident-b, recovery"
-    )
-
 PROJECT_ID = urllib.parse.quote(PROJECT, safe="")
 GLOBAL_LABEL = LabelSpec(
     "health::incident",
@@ -203,44 +190,6 @@ def ensure_labels() -> tuple[str, str]:
     ensure_label(GLOBAL_LABEL)
     ensure_label(forge_label)
     return GLOBAL_LABEL.name, forge_label.name
-
-
-def _self_test_requested() -> bool:
-    return TEST_CASE in {TEST_INCIDENT_A, TEST_INCIDENT_B, TEST_RECOVERY}
-
-
-def _self_test_incidents() -> list[Incident] | None:
-    """Return controlled incidents for an explicitly manual reporter self-test."""
-    if not _self_test_requested():
-        return None
-
-    if FORGE == "github":
-        source = os.environ.get("GITHUB_EVENT_NAME", "").strip()
-        expected_source = "workflow_dispatch"
-    else:
-        source = os.environ.get("CI_PIPELINE_SOURCE", "").strip()
-        expected_source = "web"
-
-    if source != expected_source:
-        fail(
-            "Profile Health self-tests are allowed only from an explicit manual "
-            f"{FORGE_DISPLAY[FORGE]} run"
-        )
-
-    if TEST_CASE == TEST_RECOVERY:
-        return []
-
-    suffix = "A" if TEST_CASE == TEST_INCIDENT_A else "B"
-    return [
-        Incident(
-            component=SELF_TEST_COMPONENT,
-            message=(
-                f"Controlled synthetic incident {suffix}; this validates issue "
-                "creation, de-duplication, updates, and recovery without breaking "
-                "a production dependency"
-            ),
-        )
-    ]
 
 
 def _health_report_incidents(*, expect_report: bool) -> dict[str, str]:
@@ -462,9 +411,6 @@ def _sorted_incidents(incidents: dict[str, str]) -> list[Incident]:
 
 
 def load_incidents() -> list[Incident]:
-    self_test = _self_test_incidents()
-    if self_test is not None:
-        return self_test
     return _github_incidents() if FORGE == "github" else _gitlab_incidents()
 
 
@@ -534,18 +480,6 @@ def build_body(incidents: list[Incident]) -> str:
         managed_marker(),
         f"<!-- profile-health-fingerprint:{fingerprint} -->",
     ]
-    if TEST_CASE in {TEST_INCIDENT_A, TEST_INCIDENT_B}:
-        lines.extend(
-            [
-                SELF_TEST_MARKER,
-                (
-                    "**Controlled self-test:** this incident was generated manually "
-                    "to validate Profile Health automation. No production dependency "
-                    "was intentionally broken."
-                ),
-                "",
-            ]
-        )
     lines.extend(
         [
             (
@@ -614,11 +548,6 @@ def open_health_issue(labels: tuple[str, str]) -> JsonObject | None:
     return None
 
 
-def is_self_test_issue(issue: JsonObject) -> bool:
-    description = issue.get("description")
-    return isinstance(description, str) and SELF_TEST_MARKER in description
-
-
 def issue_labels(issue: JsonObject, managed_labels: tuple[str, str]) -> tuple[str, ...]:
     """Preserve non-Profile-Health labels while reconciling owned labels."""
     raw_labels = issue.get("labels")
@@ -677,35 +606,6 @@ def recover(issue: JsonObject) -> None:
     print(f"Closed recovered {FORGE_DISPLAY[FORGE]} Profile Health issue #{iid}.")
 
 
-def supersede_self_test(issue: JsonObject) -> None:
-    """Close a synthetic probe before opening a separate real incident."""
-    iid = _issue_iid(issue)
-    run_kind, url, _, _ = run_metadata()
-    message = (
-        "Controlled self-test closed automatically because a real Profile Health "
-        "incident was detected. The real incident is tracked separately."
-    )
-    if url:
-        message += f" [{run_kind}]({url})"
-    add_note(iid, message)
-    api("PUT", project_path(f"/issues/{iid}"), {"state_event": "close"})
-    print(
-        f"Closed superseded {FORGE_DISPLAY[FORGE]} Profile Health self-test issue #{iid}."
-    )
-
-
-def _assert_self_test_issue_compatible(issue: JsonObject | None) -> None:
-    if (
-        _self_test_requested()
-        and issue is not None
-        and not is_self_test_issue(issue)
-    ):
-        fail(
-            "Refusing to run a Profile Health self-test while a real managed "
-            f"{FORGE_DISPLAY[FORGE]} incident is open"
-        )
-
-
 def _report_incidents(
     incidents: list[Incident],
     issue: JsonObject | None,
@@ -748,22 +648,6 @@ def main() -> None:
     labels = ensure_labels()
     incidents = load_incidents()
     issue = open_health_issue(labels)
-    _assert_self_test_issue_compatible(issue)
-
-    # A normal production run must not accidentally complete or rewrite a
-    # controlled self-test that is waiting for its explicit next probe. If a real
-    # incident appears during that probe, close the synthetic episode first and
-    # create a separate real incident so operational history stays unambiguous.
-    if not _self_test_requested() and issue is not None and is_self_test_issue(issue):
-        if not incidents:
-            print(
-                f"{FORGE_DISPLAY[FORGE]} Profile Health is clean; active self-test "
-                "issue left open for explicit recovery."
-            )
-            return
-        supersede_self_test(issue)
-        issue = None
-
     if incidents:
         _report_incidents(incidents, issue, labels)
         return
