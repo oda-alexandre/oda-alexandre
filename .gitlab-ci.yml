@@ -289,7 +289,7 @@ verify_signature:
 test_secrets:
   stage: test
   image:
-    name: 'ghcr.io/gitleaks/gitleaks:v8.30.0@sha256:691af3c7c5a48b16f187ce3446d5f194838f91238f27270ed36eef6359a574d9'
+    name: 'ghcr.io/gitleaks/gitleaks:v8.30.0@sha256:105ac66a57b2bb8afb61a3b8a5dcc4817773d03724a7e8a515214cfe58225556'
     entrypoint: ['']
   needs:
     - job: verify_signature
