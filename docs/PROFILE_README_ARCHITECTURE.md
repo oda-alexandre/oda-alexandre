@@ -451,7 +451,6 @@ automation runs on GitHub.
   not a repository-write identity. Use separate tokens for GitLab CI and GitHub
   Actions so either integration can be revoked or rotated independently.
 
-
 Do not weaken issue de-duplication, merge the two forge states into one issue, or
 let one forge close the other forge's active incident.
 
