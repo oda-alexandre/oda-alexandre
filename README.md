@@ -58,7 +58,7 @@
 
 <!-- SECTION:FEATURED-PROJECTS:CONTENT:START -->
 <p align="center">
-  <a href="https://github.com/oda-alexandre/oda-alexandre"><img src="./assets/generated/featured-project-oda-alexandre-oda-alexandre-edb322b4.svg?v=d23ab8349218" alt="Featured project: oda-alexandre" width="340"></a>
+  <a href="https://github.com/oda-alexandre/oda-alexandre"><img src="./assets/generated/featured-project-oda-alexandre-oda-alexandre-edb322b4.svg?v=feaecdcaa7e0" alt="Featured project: oda-alexandre" width="340"></a>
 </p>
 <!-- SECTION:FEATURED-PROJECTS:CONTENT:END -->
 
@@ -111,7 +111,7 @@
 </p>
 
 <p align="center">
-  <img src="./assets/generated/github-activity.svg?v=441c2b589cb6" alt="GitHub Activity · 365 Days">
+  <img src="./assets/generated/github-activity.svg?v=37b19277dfb5" alt="GitHub Activity · 365 Days">
 </p>
 <!-- SECTION:GITHUB-STATS:CONTENT:END -->
 
