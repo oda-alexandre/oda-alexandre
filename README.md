@@ -111,7 +111,7 @@
 </p>
 
 <p align="center">
-  <img src="./assets/generated/github-activity.svg?v=cc3fee83a121" alt="GitHub Activity · 365 Days">
+  <img src="./assets/generated/github-activity.svg?v=d5aa321e2ca5" alt="GitHub Activity · 365 Days">
 </p>
 <!-- SECTION:GITHUB-STATS:CONTENT:END -->
 
@@ -131,48 +131,49 @@
   <a href="https://github.com/oda-alexandre?tab=followers"><img src="https://img.shields.io/github/followers/oda-alexandre?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=FOLLOWERS&amp;labelColor=116466&amp;color=116466" alt="oda-alexandre followers"></a>
 </p>
 <p align="center">
+  <a href="https://github.com/0vm"><img src="https://img.shields.io/github/followers/0vm?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=0vm&amp;labelColor=116466&amp;color=116466" alt="0vm followers"></a>
   <a href="https://github.com/A73X"><img src="https://img.shields.io/github/followers/A73X?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=A73X&amp;labelColor=116466&amp;color=116466" alt="A73X followers"></a>
   <a href="https://github.com/AegisTaaltec"><img src="https://img.shields.io/github/followers/AegisTaaltec?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=AegisTaaltec&amp;labelColor=116466&amp;color=116466" alt="AegisTaaltec followers"></a>
   <a href="https://github.com/alvrenkai"><img src="https://img.shields.io/github/followers/alvrenkai?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=alvrenkai&amp;labelColor=116466&amp;color=116466" alt="alvrenkai followers"></a>
-  <a href="https://github.com/AmauryVanEspen"><img src="https://img.shields.io/github/followers/AmauryVanEspen?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=AmauryVanEspen&amp;labelColor=116466&amp;color=116466" alt="AmauryVanEspen followers"></a>
 </p>
 <p align="center">
+  <a href="https://github.com/AmauryVanEspen"><img src="https://img.shields.io/github/followers/AmauryVanEspen?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=AmauryVanEspen&amp;labelColor=116466&amp;color=116466" alt="AmauryVanEspen followers"></a>
   <a href="https://github.com/aya"><img src="https://img.shields.io/github/followers/aya?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=aya&amp;labelColor=116466&amp;color=116466" alt="aya followers"></a>
   <a href="https://github.com/baptiste-dauphin"><img src="https://img.shields.io/github/followers/baptiste-dauphin?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=baptiste-dauphin&amp;labelColor=116466&amp;color=116466" alt="baptiste-dauphin followers"></a>
   <a href="https://github.com/benifei"><img src="https://img.shields.io/github/followers/benifei?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=benifei&amp;labelColor=116466&amp;color=116466" alt="benifei followers"></a>
-  <a href="https://github.com/Chronoz55"><img src="https://img.shields.io/github/followers/Chronoz55?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=Chronoz55&amp;labelColor=116466&amp;color=116466" alt="Chronoz55 followers"></a>
 </p>
 <p align="center">
+  <a href="https://github.com/Chronoz55"><img src="https://img.shields.io/github/followers/Chronoz55?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=Chronoz55&amp;labelColor=116466&amp;color=116466" alt="Chronoz55 followers"></a>
   <a href="https://github.com/CisKolea"><img src="https://img.shields.io/github/followers/CisKolea?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=CisKolea&amp;labelColor=116466&amp;color=116466" alt="CisKolea followers"></a>
   <a href="https://github.com/D0ntTrustMe"><img src="https://img.shields.io/github/followers/D0ntTrustMe?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=D0ntTrustMe&amp;labelColor=116466&amp;color=116466" alt="D0ntTrustMe followers"></a>
   <a href="https://github.com/elyasrz"><img src="https://img.shields.io/github/followers/elyasrz?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=elyasrz&amp;labelColor=116466&amp;color=116466" alt="elyasrz followers"></a>
-  <a href="https://github.com/fair3n"><img src="https://img.shields.io/github/followers/fair3n?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=fair3n&amp;labelColor=116466&amp;color=116466" alt="fair3n followers"></a>
 </p>
 <p align="center">
+  <a href="https://github.com/fair3n"><img src="https://img.shields.io/github/followers/fair3n?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=fair3n&amp;labelColor=116466&amp;color=116466" alt="fair3n followers"></a>
   <a href="https://github.com/fantomas2b"><img src="https://img.shields.io/github/followers/fantomas2b?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=fantomas2b&amp;labelColor=116466&amp;color=116466" alt="fantomas2b followers"></a>
   <a href="https://github.com/Freeman1893"><img src="https://img.shields.io/github/followers/Freeman1893?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=Freeman1893&amp;labelColor=116466&amp;color=116466" alt="Freeman1893 followers"></a>
   <a href="https://github.com/JustMissingLeg"><img src="https://img.shields.io/github/followers/JustMissingLeg?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=JustMissingLeg&amp;labelColor=116466&amp;color=116466" alt="JustMissingLeg followers"></a>
-  <a href="https://github.com/lnravelojaonaGE1"><img src="https://img.shields.io/github/followers/lnravelojaonaGE1?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=lnravelojaonaGE1&amp;labelColor=116466&amp;color=116466" alt="lnravelojaonaGE1 followers"></a>
 </p>
 <p align="center">
+  <a href="https://github.com/lnravelojaonaGE1"><img src="https://img.shields.io/github/followers/lnravelojaonaGE1?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=lnravelojaonaGE1&amp;labelColor=116466&amp;color=116466" alt="lnravelojaonaGE1 followers"></a>
   <a href="https://github.com/mfsiat"><img src="https://img.shields.io/github/followers/mfsiat?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=mfsiat&amp;labelColor=116466&amp;color=116466" alt="mfsiat followers"></a>
   <a href="https://github.com/mmdhgh"><img src="https://img.shields.io/github/followers/mmdhgh?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=mmdhgh&amp;labelColor=116466&amp;color=116466" alt="mmdhgh followers"></a>
   <a href="https://github.com/mrpunkdasilva"><img src="https://img.shields.io/github/followers/mrpunkdasilva?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=mrpunkdasilva&amp;labelColor=116466&amp;color=116466" alt="mrpunkdasilva followers"></a>
-  <a href="https://github.com/Neustradamus"><img src="https://img.shields.io/github/followers/Neustradamus?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=Neustradamus&amp;labelColor=116466&amp;color=116466" alt="Neustradamus followers"></a>
 </p>
 <p align="center">
+  <a href="https://github.com/Neustradamus"><img src="https://img.shields.io/github/followers/Neustradamus?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=Neustradamus&amp;labelColor=116466&amp;color=116466" alt="Neustradamus followers"></a>
   <a href="https://github.com/PaulineVillarubla"><img src="https://img.shields.io/github/followers/PaulineVillarubla?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=PaulineVillarubla&amp;labelColor=116466&amp;color=116466" alt="PaulineVillarubla followers"></a>
   <a href="https://github.com/RBLEC"><img src="https://img.shields.io/github/followers/RBLEC?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=RBLEC&amp;labelColor=116466&amp;color=116466" alt="RBLEC followers"></a>
   <a href="https://github.com/saladtosser"><img src="https://img.shields.io/github/followers/saladtosser?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=saladtosser&amp;labelColor=116466&amp;color=116466" alt="saladtosser followers"></a>
-  <a href="https://github.com/Salahzaar"><img src="https://img.shields.io/github/followers/Salahzaar?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=Salahzaar&amp;labelColor=116466&amp;color=116466" alt="Salahzaar followers"></a>
 </p>
 <p align="center">
+  <a href="https://github.com/Salahzaar"><img src="https://img.shields.io/github/followers/Salahzaar?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=Salahzaar&amp;labelColor=116466&amp;color=116466" alt="Salahzaar followers"></a>
   <a href="https://github.com/sdsnake"><img src="https://img.shields.io/github/followers/sdsnake?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=sdsnake&amp;labelColor=116466&amp;color=116466" alt="sdsnake followers"></a>
   <a href="https://github.com/Skoatpalace"><img src="https://img.shields.io/github/followers/Skoatpalace?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=Skoatpalace&amp;labelColor=116466&amp;color=116466" alt="Skoatpalace followers"></a>
   <a href="https://github.com/Stirling82"><img src="https://img.shields.io/github/followers/Stirling82?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=Stirling82&amp;labelColor=116466&amp;color=116466" alt="Stirling82 followers"></a>
-  <a href="https://github.com/Ugoboby"><img src="https://img.shields.io/github/followers/Ugoboby?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=Ugoboby&amp;labelColor=116466&amp;color=116466" alt="Ugoboby followers"></a>
 </p>
 <p align="center">
+  <a href="https://github.com/Ugoboby"><img src="https://img.shields.io/github/followers/Ugoboby?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=Ugoboby&amp;labelColor=116466&amp;color=116466" alt="Ugoboby followers"></a>
   <a href="https://github.com/xiaomui21"><img src="https://img.shields.io/github/followers/xiaomui21?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=xiaomui21&amp;labelColor=116466&amp;color=116466" alt="xiaomui21 followers"></a>
   <a href="https://github.com/xma899"><img src="https://img.shields.io/github/followers/xma899?style=for-the-badge&amp;logo=github&amp;logoColor=white&amp;label=xma899&amp;labelColor=116466&amp;color=116466" alt="xma899 followers"></a>
 </p>
