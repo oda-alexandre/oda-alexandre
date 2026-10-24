@@ -3,7 +3,7 @@
 <div align="center">
 
 <!-- SECTION:PROFILE:CONTENT:START -->
-<img src="./assets/generated/avatar.svg?v=ad183e0a8e1f" width="200" height="200" alt="maitreoda GitHub avatar" title="maitreoda">
+<img src="./assets/generated/avatar.svg?v=961789270c59" width="200" height="200" alt="maitreoda GitHub avatar" title="maitreoda">
 
 ## maitreoda
 
@@ -111,7 +111,7 @@
 </p>
 
 <p align="center">
-  <img src="./assets/generated/github-activity.svg?v=55055cdd11f2" alt="GitHub Activity · 365 Days">
+  <img src="./assets/generated/github-activity.svg?v=e2da88e3c54d" alt="GitHub Activity · 365 Days">
 </p>
 <!-- SECTION:GITHUB-STATS:CONTENT:END -->
 
